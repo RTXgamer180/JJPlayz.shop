@@ -1,0 +1,267 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>JJPlayz.shop</title>
+<style>
+:root {
+  --red: #ff2525;
+  --bg: #090909;
+  --panel: #171717;
+  --border: #303030;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: white;
+  font-family: Arial, sans-serif;
+}
+header {
+  background: #111;
+  border-bottom: 2px solid var(--red);
+  padding: 12px 5%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  position: sticky;
+  top: 0;
+  z-index: 5;
+}
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 22px;
+  font-weight: bold;
+}
+.brand img {
+  width: 48px;
+  height: 58px;
+  object-fit: contain;
+}
+.brand span { color: var(--red); }
+button {
+  border: 0;
+  border-radius: 7px;
+  padding: 12px 17px;
+  cursor: pointer;
+  font-weight: bold;
+}
+.red {
+  background: var(--red);
+  color: white;
+}
+.dark {
+  background: #292929;
+  color: white;
+}
+.hero {
+  text-align: center;
+  padding: 85px 20px;
+  background: radial-gradient(ellipse at top, #451010, transparent 70%);
+}
+.hero h1 {
+  font-size: clamp(38px, 8vw, 65px);
+  margin: 0 0 15px;
+}
+.hero h1 span { color: var(--red); }
+.hero p { color: #aaa; }
+section { padding: 35px 6%; }
+h2 { font-size: 28px; }
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  gap: 20px;
+}
+.product {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 18px;
+  transition: .2s;
+}
+.product:hover {
+  transform: translateY(-4px);
+  border-color: var(--red);
+}
+.picture {
+  height: 140px;
+  display: grid;
+  place-items: center;
+  font-size: 65px;
+  background: #252525;
+  border-radius: 8px;
+}
+.price {
+  color: var(--red);
+  font-size: 22px;
+  font-weight: bold;
+}
+.product button { width: 100%; }
+.notice {
+  color: #999;
+  font-size: 13px;
+}
+.modal {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: #000d;
+  z-index: 10;
+  justify-content: center;
+  align-items: center;
+  padding: 15px;
+}
+.modal-box {
+  width: 100%;
+  max-width: 400px;
+  background: #191919;
+  border: 1px solid var(--red);
+  border-radius: 12px;
+  padding: 25px;
+}
+.modal-box button {
+  width: 100%;
+  margin-top: 10px;
+}
+footer {
+  border-top: 1px solid #333;
+  padding: 30px;
+  text-align: center;
+  color: #777;
+}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="brand">
+    <img src="https://mc-heads.net/body/Raphi1602/100"
+         alt="Raphi1602 Minecraft skin">
+    JJ<span>Playz</span>.shop
+  </div>
+  <div>
+    <button class="dark" onclick="openCart()">🛒 <span id="count">0</span></button>
+    <button class="red" onclick="openAccount()">Account</button>
+  </div>
+</header>
+
+<div class="hero">
+  <h1>JJ<span>PLAYZ</span>.SHOP</h1>
+  <p>Your Minecraft marketplace.</p>
+  <p>Skins • Addons • Maps • More</p>
+  <button class="red" onclick="document.getElementById('shop').scrollIntoView({behavior:'smooth'})">
+    EXPLORE SHOP
+  </button>
+</div>
+
+<section id="shop">
+  <h2>🔥 Minecraft Products</h2>
+  <p class="notice">Demo catalogue — replace with your actual products and prices.</p>
+  <div class="grid" id="products"></div>
+</section>
+
+<footer>
+  <h3>JJPlayz.shop</h3>
+  <p>Made by JJPlayz | Minecraft Java: Raphi1602</p>
+  <p>Independent fan-made shop. Not affiliated with Mojang or Microsoft.</p>
+  <p>© 2026 JJPlayz</p>
+</footer>
+
+<div class="modal" id="cart">
+  <div class="modal-box">
+    <h2>🛒 Your cart</h2>
+    <div id="cartItems"></div>
+    <h3 id="total">Total: €0.00</h3>
+    <p class="notice">Your cart is temporary and is not saved.</p>
+    <button class="dark" onclick="closeModal('cart')">Close</button>
+    <button class="red" onclick="alert('Checkout is not available yet!')">Checkout</button>
+  </div>
+</div>
+
+<div class="modal" id="account">
+  <div class="modal-box">
+    <h2>👤 JJPlayz Account</h2>
+    <p>There are no real accounts on this version.</p>
+    <p class="notice">No passwords, emails or personal information are collected.</p>
+    <button class="red" onclick="closeModal('account')">Got it!</button>
+  </div>
+</div>
+
+<script>
+const products = [
+  {name:"Custom Minecraft Skin",price:2.99,icon:"🧑"},
+  {name:"Minecraft Addon",price:4.99,icon:"🧩"},
+  {name:"Minecraft Map",price:3.99,icon:"🗺️"},
+  {name:"Texture Pack",price:2.49,icon:"🎨"},
+  {name:"Minecraft Mod",price:5.99,icon:"⚙️"},
+  {name:"JJPlayz Mystery Pack",price:6.99,icon:"🎁"}
+];
+
+let cart = [];
+
+const grid = document.getElementById("products");
+
+products.forEach((p,i)=>{
+  const card=document.createElement("div");
+  card.className="product";
+
+  const picture=document.createElement("div");
+  picture.className="picture";
+  picture.textContent=p.icon;
+
+  const name=document.createElement("h3");
+  name.textContent=p.name;
+
+  const price=document.createElement("p");
+  price.className="price";
+  price.textContent="€"+p.price.toFixed(2);
+
+  const btn=document.createElement("button");
+  btn.className="red";
+  btn.textContent="Add to cart";
+  btn.onclick=()=>add(i);
+
+  card.append(picture,name,price,btn);
+  grid.appendChild(card);
+});
+
+function add(i){
+  cart.push(products[i]);
+  document.getElementById("count").textContent=cart.length;
+}
+
+function openCart(){
+  const list=document.getElementById("cartItems");
+  list.replaceChildren();
+  let total=0;
+
+  if(!cart.length){
+    list.textContent="Your cart is empty!";
+  }
+
+  cart.forEach(p=>{
+    const line=document.createElement("p");
+    line.textContent=p.name+" — €"+p.price.toFixed(2);
+    list.appendChild(line);
+    total+=p.price;
+  });
+
+  document.getElementById("total").textContent="Total: €"+total.toFixed(2);
+  document.getElementById("cart").style.display="flex";
+}
+
+function openAccount(){
+  document.getElementById("account").style.display="flex";
+}
+
+function closeModal(id){
+  document.getElementById(id).style.display="none";
+}
+</script>
+</body>
+</html>
