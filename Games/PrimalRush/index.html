@@ -1,0 +1,647 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PRIMAL RUSH</title>
+
+<style>
+* { box-sizing:border-box }
+body {
+  margin:0;
+  overflow:hidden;
+  background:#101c16;
+  font-family:Arial,sans-serif;
+  color:white;
+}
+#ui {
+  position:fixed;
+  inset:0;
+  pointer-events:none;
+}
+.panel {
+  pointer-events:auto;
+  background:#101b19dd;
+  border:1px solid #4c8068;
+  border-radius:12px;
+  padding:12px;
+  backdrop-filter:blur(8px);
+}
+#top {
+  position:absolute;
+  top:12px;
+  left:12px;
+}
+#rooms {
+  position:absolute;
+  top:12px;
+  right:12px;
+  width:230px;
+}
+input,button {
+  width:100%;
+  padding:10px;
+  margin-top:6px;
+  border:0;
+  border-radius:7px;
+}
+button {
+  background:#52db83;
+  color:#102018;
+  font-weight:bold;
+  cursor:pointer;
+}
+button:hover { background:#8affad }
+#help {
+  position:absolute;
+  bottom:12px;
+  left:12px;
+  max-width:320px;
+  font-size:13px;
+}
+#crosshair {
+  position:absolute;
+  left:50%;
+  top:50%;
+  transform:translate(-50%,-50%);
+  font-size:20px;
+  color:white;
+}
+#status { color:#9cffba;font-size:12px }
+</style>
+</head>
+
+<body>
+<div id="ui">
+  <div id="top" class="panel">
+    <b>🦍 PRIMAL RUSH</b><br>
+    <small>Jungle Arena</small>
+    <div id="status">Connecting...</div>
+  </div>
+
+  <div id="rooms" class="panel">
+    <b>🌐 MULTIPLAYER</b>
+    <input id="room" placeholder="Room code">
+    <button id="host">CREATE ROOM</button>
+    <button id="join">JOIN ROOM</button>
+    <hr>
+    <small id="players">Players: 1</small>
+    <hr>
+    <button id="vr">🥽 ENTER VR</button>
+    <button id="fullscreen">FULLSCREEN</button>
+  </div>
+
+  <div id="help" class="panel">
+    <b>CONTROLS</b><br>
+    WASD = Move<br>
+    Mouse = Look around<br>
+    SPACE = Jump<br>
+    E = Pick up / drop<br>
+    LEFT CLICK = Throw held object<br>
+    VR = Grip to push yourself, trigger to grab<br>
+    <small>Walk around and explore the jungle!</small>
+  </div>
+
+  <div id="crosshair">+</div>
+</div>
+
+<script src="https://unpkg.com/peerjs@1.5.5/dist/peerjs.min.js"></script>
+
+<script type="module">
+import * as THREE from
+'https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js';
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x8cc7b0);
+scene.fog = new THREE.Fog(0x8cc7b0,25,100);
+
+const camera = new THREE.PerspectiveCamera(
+  75, innerWidth/innerHeight, 0.1, 200
+);
+
+const rig = new THREE.Group();
+rig.position.set(0,1.7,5);
+rig.add(camera);
+scene.add(rig);
+
+const renderer = new THREE.WebGLRenderer({
+  antialias:true
+});
+renderer.setSize(innerWidth,innerHeight);
+renderer.setPixelRatio(Math.min(devicePixelRatio,2));
+renderer.xr.enabled = true;
+renderer.shadowMap.enabled = true;
+document.body.appendChild(renderer.domElement);
+
+scene.add(new THREE.HemisphereLight(0xc8f5ff,0x263d23,2));
+
+const sun = new THREE.DirectionalLight(0xffffff,2);
+sun.position.set(15,25,10);
+sun.castShadow=true;
+scene.add(sun);
+
+// MATERIALS
+const green = new THREE.MeshStandardMaterial({
+  color:0x347b45, roughness:1
+});
+const darkGreen = new THREE.MeshStandardMaterial({
+  color:0x19482d
+});
+const wood = new THREE.MeshStandardMaterial({
+  color:0x78502c
+});
+const stone = new THREE.MeshStandardMaterial({
+  color:0x737d7b
+});
+const colors = [
+  0x39a8ff,0xff5555,0xffc83d,
+  0xd45bff,0x42e6a4,0xffffff
+];
+
+// WORLD
+function box(x,y,z,sx,sy,sz,mat) {
+  const m=new THREE.Mesh(
+    new THREE.BoxGeometry(sx,sy,sz),mat
+  );
+  m.position.set(x,y,z);
+  m.castShadow=true;
+  m.receiveShadow=true;
+  scene.add(m);
+  return m;
+}
+
+const ground=box(0,-0.5,0,100,1,100,green);
+
+// Platforms
+box(0,2,-9,8,0.5,8,wood);
+box(-9,3,-3,5,0.5,5,stone);
+box(10,4,-8,5,0.5,5,stone);
+box(0,6,-19,7,0.5,7,wood);
+box(-16,1,8,6,0.5,6,wood);
+box(17,2,9,7,0.5,7,stone);
+
+// Trees
+function tree(x,z,h=6) {
+  const trunk=new THREE.Mesh(
+    new THREE.CylinderGeometry(.3,.5,h,7),wood
+  );
+  trunk.position.set(x,h/2-.3,z);
+  trunk.castShadow=true;
+  scene.add(trunk);
+
+  const leaves=new THREE.Mesh(
+    new THREE.IcosahedronGeometry(h*.38,1),darkGreen
+  );
+  leaves.position.set(x,h*.85,z);
+  leaves.castShadow=true;
+  scene.add(leaves);
+}
+
+for(let i=0;i<45;i++) {
+  const x=(Math.random()-.5)*85;
+  const z=(Math.random()-.5)*85;
+  if(Math.abs(x)<8 && Math.abs(z)<8) continue;
+  tree(x,z,4+Math.random()*5);
+}
+
+// Rocks
+for(let i=0;i<30;i++) {
+  const rock=new THREE.Mesh(
+    new THREE.DodecahedronGeometry(
+      .5+Math.random(),0
+    ),stone
+  );
+  rock.position.set(
+    (Math.random()-.5)*70,
+    -.1,
+    (Math.random()-.5)*70
+  );
+  rock.scale.y=.6;
+  scene.add(rock);
+}
+
+// PICKUP OBJECTS
+const objects=[];
+const pickupColors=[0xffb52e,0x40caff,0xf05b8d];
+
+function makePickup(x,y,z,color) {
+  const mesh=new THREE.Mesh(
+    new THREE.IcosahedronGeometry(.4,1),
+    new THREE.MeshStandardMaterial({
+      color,metalness:.3,roughness:.3
+    })
+  );
+  mesh.position.set(x,y,z);
+  mesh.castShadow=true;
+  scene.add(mesh);
+  objects.push({
+    mesh,
+    held:false,
+    velocity:new THREE.Vector3()
+  });
+}
+
+makePickup(2,1,2,pickupColors[0]);
+makePickup(-3,1,0,pickupColors[1]);
+makePickup(4,3,-8,pickupColors[2]);
+makePickup(-8,4,-3,pickupColors[0]);
+
+let held=null;
+
+function grabNearest(position) {
+  if(held) return;
+  let best=null,dist=2.2;
+
+  for(const o of objects) {
+    if(o.held) continue;
+    const d=o.mesh.position.distanceTo(position);
+    if(d<dist) {
+      best=o;
+      dist=d;
+    }
+  }
+
+  if(best) {
+    best.held=true;
+    held=best;
+  }
+}
+
+function drop(velocity=new THREE.Vector3()) {
+  if(!held) return;
+  held.held=false;
+  held.velocity.copy(velocity);
+  held=null;
+}
+
+// PLAYER MODELS
+function makeAvatar(color) {
+  const group=new THREE.Group();
+  const mat=new THREE.MeshStandardMaterial({color});
+
+  const body=new THREE.Mesh(
+    new THREE.CapsuleGeometry(.38,.65,5,8),mat
+  );
+  body.position.y=.75;
+  group.add(body);
+
+  const head=new THREE.Mesh(
+    new THREE.SphereGeometry(.36,16,12),mat
+  );
+  head.position.y=1.55;
+  group.add(head);
+
+  const eyesMat=new THREE.MeshBasicMaterial({
+    color:0xffffff
+  });
+
+  for(const x of [-.13,.13]) {
+    const eye=new THREE.Mesh(
+      new THREE.SphereGeometry(.055,8,8),
+      eyesMat
+    );
+    eye.position.set(x,1.6,-.3);
+    group.add(eye);
+  }
+
+  // Arms
+  for(const x of [-.55,.55]) {
+    const arm=new THREE.Mesh(
+      new THREE.CapsuleGeometry(.16,.65,4,8),mat
+    );
+    arm.position.set(x,.8,0);
+    arm.rotation.z=x>0?-.5:.5;
+    group.add(arm);
+  }
+
+  scene.add(group);
+  return group;
+}
+
+const localAvatar=makeAvatar(colors[0]);
+localAvatar.visible=false;
+
+// NETWORK
+let peer=null;
+let connections=[];
+let remotes={};
+let myColor=0;
+let networkActive=false;
+
+function updatePlayers() {
+  document.getElementById('players').textContent=
+    'Players: '+(1+Object.keys(remotes).length);
+}
+
+function broadcast() {
+  if(!networkActive) return;
+
+  const data={
+    type:'position',
+    x:rig.position.x,
+    y:rig.position.y,
+    z:rig.position.z,
+    rotation:camera.rotation.y,
+    color:myColor
+  };
+
+  connections.forEach(c=>{
+    if(c.open) c.send(data);
+  });
+}
+
+function receive(c) {
+  c.on('data',data=>{
+    if(data.type!=='position') return;
+
+    if(!remotes[c.peer]) {
+      remotes[c.peer]=makeAvatar(colors[data.color%colors.length]);
+      updatePlayers();
+    }
+
+    const a=remotes[c.peer];
+    a.position.set(data.x,data.y-1.7,data.z);
+    a.rotation.y=data.rotation;
+  });
+
+  c.on('close',()=>{
+    if(remotes[c.peer]) {
+      scene.remove(remotes[c.peer]);
+      delete remotes[c.peer];
+    }
+    connections=connections.filter(x=>x!==c);
+    updatePlayers();
+  });
+}
+
+function connect(c) {
+  connections.push(c);
+  receive(c);
+}
+
+document.getElementById('host').onclick=()=>{
+  const code=document.getElementById('room').value.trim();
+  if(!code) return alert('Enter a room code!');
+
+  if(peer) peer.destroy();
+  peer=new Peer('primal-'+code);
+
+  peer.on('open',()=>{
+    networkActive=true;
+    document.getElementById('status').textContent=
+      'Hosting: '+code;
+  });
+
+  peer.on('connection',connect);
+
+  peer.on('error',e=>{
+    alert('Network error: '+e.type);
+  });
+};
+
+document.getElementById('join').onclick=()=>{
+  const code=document.getElementById('room').value.trim();
+  if(!code) return alert('Enter a room code!');
+
+  if(peer) peer.destroy();
+  peer=new Peer();
+
+  peer.on('open',()=>{
+    const c=peer.connect('primal-'+code);
+    c.on('open',()=>{
+      connect(c);
+      networkActive=true;
+      document.getElementById('status').textContent=
+        'Joined: '+code;
+    });
+    c.on('error',e=>alert('Connection failed: '+e));
+  });
+
+  peer.on('error',e=>alert('Network error: '+e.type));
+};
+
+// DESKTOP CONTROLS
+const keys={};
+let yaw=0,pitch=0;
+let locked=false;
+
+document.addEventListener('keydown',e=>{
+  keys[e.code]=true;
+
+  if(e.code==='KeyE') {
+    if(held) drop();
+    else grabNearest(camera.getWorldPosition(
+      new THREE.Vector3()
+    ));
+  }
+});
+
+document.addEventListener('keyup',e=>{
+  keys[e.code]=false;
+});
+
+renderer.domElement.addEventListener('click',()=>{
+  if(!renderer.xr.isPresenting)
+    renderer.domElement.requestPointerLock();
+});
+
+document.addEventListener('pointerlockchange',()=>{
+  locked=document.pointerLockElement===renderer.domElement;
+});
+
+document.addEventListener('mousemove',e=>{
+  if(!locked || renderer.xr.isPresenting) return;
+  yaw-=e.movementX*.002;
+  pitch-=e.movementY*.002;
+  pitch=Math.max(-1.5,Math.min(1.5,pitch));
+  camera.rotation.set(pitch,yaw,0,'YXZ');
+});
+
+document.addEventListener('mousedown',e=>{
+  if(e.button===0 && held) {
+    const direction=new THREE.Vector3();
+    camera.getWorldDirection(direction);
+    drop(direction.multiplyScalar(9));
+  }
+});
+
+let verticalSpeed=0;
+let grounded=false;
+
+// VR CONTROLLERS
+const controllers=[];
+const previousPositions=[];
+const squeezing=[];
+
+for(let i=0;i<2;i++) {
+  const c=renderer.xr.getController(i);
+  scene.add(c);
+  controllers.push(c);
+  previousPositions.push(new THREE.Vector3());
+  squeezing.push(false);
+
+  c.addEventListener('squeezestart',()=>{
+    squeezing[i]=true;
+    previousPositions[i].copy(c.position);
+  });
+
+  c.addEventListener('squeezeend',()=>{
+    squeezing[i]=false;
+  });
+
+  c.addEventListener('selectstart',()=>{
+    const p=c.getWorldPosition(new THREE.Vector3());
+    grabNearest(p);
+  });
+
+  c.addEventListener('selectend',()=>{
+    if(held) {
+      const direction=new THREE.Vector3(0,0,-1)
+        .applyQuaternion(c.quaternion);
+      drop(direction.multiplyScalar(7));
+    }
+  });
+}
+
+// VR button
+document.getElementById('vr').onclick=async()=>{
+  if(!navigator.xr) {
+    alert('WebXR is not available in this browser.');
+    return;
+  }
+
+  try {
+    const supported=await navigator.xr.isSessionSupported(
+      'immersive-vr'
+    );
+    if(!supported) {
+      alert('VR is not supported on this device.');
+      return;
+    }
+
+    const session=await navigator.xr.requestSession(
+      'immersive-vr',
+      {optionalFeatures:['local-floor','bounded-floor']}
+    );
+    renderer.xr.setSession(session);
+  } catch(e) {
+    alert('Could not start VR: '+e.message);
+  }
+};
+
+document.getElementById('fullscreen').onclick=()=>{
+  document.documentElement.requestFullscreen?.();
+};
+
+// MOVEMENT
+const direction=new THREE.Vector3();
+const forward=new THREE.Vector3();
+const right=new THREE.Vector3();
+
+function updateMovement() {
+  if(renderer.xr.isPresenting) {
+    // Gorilla-inspired arm push movement
+    for(let i=0;i<2;i++) {
+      if(!squeezing[i]) continue;
+
+      const current=controllers[i].getWorldPosition(
+        new THREE.Vector3()
+      );
+
+      const delta=current.clone().sub(previousPositions[i]);
+      rig.position.x-=delta.x*1.4;
+      rig.position.z-=delta.z*1.4;
+      rig.position.y-=delta.y*.7;
+
+      previousPositions[i].copy(current);
+    }
+
+    rig.position.y=Math.max(1.2,rig.position.y);
+    return;
+  }
+
+  forward.set(-Math.sin(yaw),0,-Math.cos(yaw));
+  right.set(Math.cos(yaw),0,-Math.sin(yaw));
+
+  direction.set(0,0,0);
+
+  if(keys.KeyW) direction.add(forward);
+  if(keys.KeyS) direction.sub(forward);
+  if(keys.KeyD) direction.add(right);
+  if(keys.KeyA) direction.sub(right);
+
+  if(direction.lengthSq()>0) {
+    direction.normalize().multiplyScalar(.13);
+    rig.position.add(direction);
+  }
+
+  if(keys.Space && grounded) {
+    verticalSpeed=.18;
+    grounded=false;
+  }
+
+  verticalSpeed-=.009;
+  rig.position.y+=verticalSpeed;
+
+  if(rig.position.y<1.7) {
+    rig.position.y=1.7;
+    verticalSpeed=0;
+    grounded=true;
+  }
+}
+
+// PHYSICS
+function updateObjects() {
+  for(const o of objects) {
+    const m=o.mesh;
+
+    if(o.held) {
+      const p=camera.getWorldPosition(new THREE.Vector3());
+      const d=new THREE.Vector3();
+      camera.getWorldDirection(d);
+      m.position.copy(p.add(d.multiplyScalar(.9)));
+      continue;
+    }
+
+    o.velocity.y-=.012;
+    m.position.add(o.velocity);
+    o.velocity.multiplyScalar(.97);
+
+    if(m.position.y<.5) {
+      m.position.y=.5;
+      o.velocity.y=Math.abs(o.velocity.y)*.55;
+    }
+
+    m.rotation.x+=.015;
+    m.rotation.y+=.02;
+  }
+}
+
+// GAME LOOP
+let lastBroadcast=0;
+
+renderer.setAnimationLoop(()=>{
+  updateMovement();
+  updateObjects();
+
+  const now=performance.now();
+  if(now-lastBroadcast>60) {
+    broadcast();
+    lastBroadcast=now;
+  }
+
+  renderer.render(scene,camera);
+});
+
+addEventListener('resize',()=>{
+  camera.aspect=innerWidth/innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(innerWidth,innerHeight);
+});
+
+document.getElementById('status').textContent=
+  'Ready! Explore the jungle.';
+</script>
+</body>
+</html>
