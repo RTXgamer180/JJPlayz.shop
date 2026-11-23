@@ -4,644 +4,526 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>PRIMAL RUSH</title>
+<title>PRIMAL RUSH - Gorilla VR</title>
+
+<script src="https://aframe.io/releases/1.7.1/aframe.min.js"></script>
 
 <style>
-* { box-sizing:border-box }
-body {
-  margin:0;
-  overflow:hidden;
-  background:#101c16;
-  font-family:Arial,sans-serif;
-  color:white;
+body { margin:0; }
+#title {
+ position:fixed;
+ top:12px;
+ left:50%;
+ transform:translateX(-50%);
+ z-index:10;
+ color:white;
+ font-family:Arial;
+ font-weight:bold;
+ font-size:22px;
+ text-shadow:2px 2px 5px black;
+ pointer-events:none;
 }
-#ui {
-  position:fixed;
-  inset:0;
-  pointer-events:none;
-}
-.panel {
-  pointer-events:auto;
-  background:#101b19dd;
-  border:1px solid #4c8068;
-  border-radius:12px;
-  padding:12px;
-  backdrop-filter:blur(8px);
-}
-#top {
-  position:absolute;
-  top:12px;
-  left:12px;
-}
-#rooms {
-  position:absolute;
-  top:12px;
-  right:12px;
-  width:230px;
-}
-input,button {
-  width:100%;
-  padding:10px;
-  margin-top:6px;
-  border:0;
-  border-radius:7px;
-}
-button {
-  background:#52db83;
-  color:#102018;
-  font-weight:bold;
-  cursor:pointer;
-}
-button:hover { background:#8affad }
-#help {
-  position:absolute;
-  bottom:12px;
-  left:12px;
-  max-width:320px;
-  font-size:13px;
-}
-#crosshair {
-  position:absolute;
-  left:50%;
-  top:50%;
-  transform:translate(-50%,-50%);
-  font-size:20px;
-  color:white;
-}
-#status { color:#9cffba;font-size:12px }
 </style>
 </head>
 
 <body>
-<div id="ui">
-  <div id="top" class="panel">
-    <b>🦍 PRIMAL RUSH</b><br>
-    <small>Jungle Arena</small>
-    <div id="status">Connecting...</div>
-  </div>
 
-  <div id="rooms" class="panel">
-    <b>🌐 MULTIPLAYER</b>
-    <input id="room" placeholder="Room code">
-    <button id="host">CREATE ROOM</button>
-    <button id="join">JOIN ROOM</button>
-    <hr>
-    <small id="players">Players: 1</small>
-    <hr>
-    <button id="vr">🥽 ENTER VR</button>
-    <button id="fullscreen">FULLSCREEN</button>
-  </div>
+<div id="title">🦍 PRIMAL RUSH</div>
 
-  <div id="help" class="panel">
-    <b>CONTROLS</b><br>
-    WASD = Move<br>
-    Mouse = Look around<br>
-    SPACE = Jump<br>
-    E = Pick up / drop<br>
-    LEFT CLICK = Throw held object<br>
-    VR = Grip to push yourself, trigger to grab<br>
-    <small>Walk around and explore the jungle!</small>
-  </div>
+<script>
 
-  <div id="crosshair">+</div>
-</div>
+// ========================================
+// GORILLA LOCOMOTION
+// ========================================
 
-<script src="https://unpkg.com/peerjs@1.5.5/dist/peerjs.min.js"></script>
+AFRAME.registerComponent('gorilla-locomotion', {
+ schema: {
+  leftHand:{type:'selector',default:'#left-hand'},
+  rightHand:{type:'selector',default:'#right-hand'},
+  gravity:{type:'number',default:-9.8},
+  jumpMultiplier:{type:'number',default:1.3},
+  maxSpeed:{type:'number',default:12},
+  handRadius:{type:'number',default:0.12}
+ },
 
-<script type="module">
-import * as THREE from
-'https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js';
+ init:function() {
+  this.velocity=new THREE.Vector3();
+  this.rigPos=this.el.object3D.position;
+  this.colliders=[];
 
-const scene = new THREE.Scene();
-scene.background = new THREE.Color(0x8cc7b0);
-scene.fog = new THREE.Fog(0x8cc7b0,25,100);
+  this.hands=[
+   {el:this.data.leftHand,prevPos:new THREE.Vector3(),currPos:new THREE.Vector3(),initialized:false},
+   {el:this.data.rightHand,prevPos:new THREE.Vector3(),currPos:new THREE.Vector3(),initialized:false}
+  ];
 
-const camera = new THREE.PerspectiveCamera(
-  75, innerWidth/innerHeight, 0.1, 200
-);
-
-const rig = new THREE.Group();
-rig.position.set(0,1.7,5);
-rig.add(camera);
-scene.add(rig);
-
-const renderer = new THREE.WebGLRenderer({
-  antialias:true
-});
-renderer.setSize(innerWidth,innerHeight);
-renderer.setPixelRatio(Math.min(devicePixelRatio,2));
-renderer.xr.enabled = true;
-renderer.shadowMap.enabled = true;
-document.body.appendChild(renderer.domElement);
-
-scene.add(new THREE.HemisphereLight(0xc8f5ff,0x263d23,2));
-
-const sun = new THREE.DirectionalLight(0xffffff,2);
-sun.position.set(15,25,10);
-sun.castShadow=true;
-scene.add(sun);
-
-// MATERIALS
-const green = new THREE.MeshStandardMaterial({
-  color:0x347b45, roughness:1
-});
-const darkGreen = new THREE.MeshStandardMaterial({
-  color:0x19482d
-});
-const wood = new THREE.MeshStandardMaterial({
-  color:0x78502c
-});
-const stone = new THREE.MeshStandardMaterial({
-  color:0x737d7b
-});
-const colors = [
-  0x39a8ff,0xff5555,0xffc83d,
-  0xd45bff,0x42e6a4,0xffffff
-];
-
-// WORLD
-function box(x,y,z,sx,sy,sz,mat) {
-  const m=new THREE.Mesh(
-    new THREE.BoxGeometry(sx,sy,sz),mat
-  );
-  m.position.set(x,y,z);
-  m.castShadow=true;
-  m.receiveShadow=true;
-  scene.add(m);
-  return m;
-}
-
-const ground=box(0,-0.5,0,100,1,100,green);
-
-// Platforms
-box(0,2,-9,8,0.5,8,wood);
-box(-9,3,-3,5,0.5,5,stone);
-box(10,4,-8,5,0.5,5,stone);
-box(0,6,-19,7,0.5,7,wood);
-box(-16,1,8,6,0.5,6,wood);
-box(17,2,9,7,0.5,7,stone);
-
-// Trees
-function tree(x,z,h=6) {
-  const trunk=new THREE.Mesh(
-    new THREE.CylinderGeometry(.3,.5,h,7),wood
-  );
-  trunk.position.set(x,h/2-.3,z);
-  trunk.castShadow=true;
-  scene.add(trunk);
-
-  const leaves=new THREE.Mesh(
-    new THREE.IcosahedronGeometry(h*.38,1),darkGreen
-  );
-  leaves.position.set(x,h*.85,z);
-  leaves.castShadow=true;
-  scene.add(leaves);
-}
-
-for(let i=0;i<45;i++) {
-  const x=(Math.random()-.5)*85;
-  const z=(Math.random()-.5)*85;
-  if(Math.abs(x)<8 && Math.abs(z)<8) continue;
-  tree(x,z,4+Math.random()*5);
-}
-
-// Rocks
-for(let i=0;i<30;i++) {
-  const rock=new THREE.Mesh(
-    new THREE.DodecahedronGeometry(
-      .5+Math.random(),0
-    ),stone
-  );
-  rock.position.set(
-    (Math.random()-.5)*70,
-    -.1,
-    (Math.random()-.5)*70
-  );
-  rock.scale.y=.6;
-  scene.add(rock);
-}
-
-// PICKUP OBJECTS
-const objects=[];
-const pickupColors=[0xffb52e,0x40caff,0xf05b8d];
-
-function makePickup(x,y,z,color) {
-  const mesh=new THREE.Mesh(
-    new THREE.IcosahedronGeometry(.4,1),
-    new THREE.MeshStandardMaterial({
-      color,metalness:.3,roughness:.3
-    })
-  );
-  mesh.position.set(x,y,z);
-  mesh.castShadow=true;
-  scene.add(mesh);
-  objects.push({
-    mesh,
-    held:false,
-    velocity:new THREE.Vector3()
+  this.el.sceneEl.addEventListener('loaded',()=>{
+   document.querySelectorAll('.collidable').forEach(el=>{
+    el.object3D.updateMatrixWorld(true);
+    this.colliders.push(new THREE.Box3().setFromObject(el.object3D));
+   });
   });
-}
+ },
 
-makePickup(2,1,2,pickupColors[0]);
-makePickup(-3,1,0,pickupColors[1]);
-makePickup(4,3,-8,pickupColors[2]);
-makePickup(-8,4,-3,pickupColors[0]);
+ tick:function(time,timeDelta) {
+  const dt=Math.min(timeDelta/1000,0.05);
+  if(dt<=0) return;
 
-let held=null;
+  let isPushing=false;
+  const pushDisplacement=new THREE.Vector3();
 
-function grabNearest(position) {
-  if(held) return;
-  let best=null,dist=2.2;
+  this.hands.forEach(hand=>{
+   if(!hand.el) return;
 
-  for(const o of objects) {
-    if(o.held) continue;
-    const d=o.mesh.position.distanceTo(position);
-    if(d<dist) {
-      best=o;
-      dist=d;
-    }
-  }
+   hand.el.object3D.getWorldPosition(hand.currPos);
 
-  if(best) {
-    best.held=true;
-    held=best;
-  }
-}
-
-function drop(velocity=new THREE.Vector3()) {
-  if(!held) return;
-  held.held=false;
-  held.velocity.copy(velocity);
-  held=null;
-}
-
-// PLAYER MODELS
-function makeAvatar(color) {
-  const group=new THREE.Group();
-  const mat=new THREE.MeshStandardMaterial({color});
-
-  const body=new THREE.Mesh(
-    new THREE.CapsuleGeometry(.38,.65,5,8),mat
-  );
-  body.position.y=.75;
-  group.add(body);
-
-  const head=new THREE.Mesh(
-    new THREE.SphereGeometry(.36,16,12),mat
-  );
-  head.position.y=1.55;
-  group.add(head);
-
-  const eyesMat=new THREE.MeshBasicMaterial({
-    color:0xffffff
-  });
-
-  for(const x of [-.13,.13]) {
-    const eye=new THREE.Mesh(
-      new THREE.SphereGeometry(.055,8,8),
-      eyesMat
-    );
-    eye.position.set(x,1.6,-.3);
-    group.add(eye);
-  }
-
-  // Arms
-  for(const x of [-.55,.55]) {
-    const arm=new THREE.Mesh(
-      new THREE.CapsuleGeometry(.16,.65,4,8),mat
-    );
-    arm.position.set(x,.8,0);
-    arm.rotation.z=x>0?-.5:.5;
-    group.add(arm);
-  }
-
-  scene.add(group);
-  return group;
-}
-
-const localAvatar=makeAvatar(colors[0]);
-localAvatar.visible=false;
-
-// NETWORK
-let peer=null;
-let connections=[];
-let remotes={};
-let myColor=0;
-let networkActive=false;
-
-function updatePlayers() {
-  document.getElementById('players').textContent=
-    'Players: '+(1+Object.keys(remotes).length);
-}
-
-function broadcast() {
-  if(!networkActive) return;
-
-  const data={
-    type:'position',
-    x:rig.position.x,
-    y:rig.position.y,
-    z:rig.position.z,
-    rotation:camera.rotation.y,
-    color:myColor
-  };
-
-  connections.forEach(c=>{
-    if(c.open) c.send(data);
-  });
-}
-
-function receive(c) {
-  c.on('data',data=>{
-    if(data.type!=='position') return;
-
-    if(!remotes[c.peer]) {
-      remotes[c.peer]=makeAvatar(colors[data.color%colors.length]);
-      updatePlayers();
-    }
-
-    const a=remotes[c.peer];
-    a.position.set(data.x,data.y-1.7,data.z);
-    a.rotation.y=data.rotation;
-  });
-
-  c.on('close',()=>{
-    if(remotes[c.peer]) {
-      scene.remove(remotes[c.peer]);
-      delete remotes[c.peer];
-    }
-    connections=connections.filter(x=>x!==c);
-    updatePlayers();
-  });
-}
-
-function connect(c) {
-  connections.push(c);
-  receive(c);
-}
-
-document.getElementById('host').onclick=()=>{
-  const code=document.getElementById('room').value.trim();
-  if(!code) return alert('Enter a room code!');
-
-  if(peer) peer.destroy();
-  peer=new Peer('primal-'+code);
-
-  peer.on('open',()=>{
-    networkActive=true;
-    document.getElementById('status').textContent=
-      'Hosting: '+code;
-  });
-
-  peer.on('connection',connect);
-
-  peer.on('error',e=>{
-    alert('Network error: '+e.type);
-  });
-};
-
-document.getElementById('join').onclick=()=>{
-  const code=document.getElementById('room').value.trim();
-  if(!code) return alert('Enter a room code!');
-
-  if(peer) peer.destroy();
-  peer=new Peer();
-
-  peer.on('open',()=>{
-    const c=peer.connect('primal-'+code);
-    c.on('open',()=>{
-      connect(c);
-      networkActive=true;
-      document.getElementById('status').textContent=
-        'Joined: '+code;
-    });
-    c.on('error',e=>alert('Connection failed: '+e));
-  });
-
-  peer.on('error',e=>alert('Network error: '+e.type));
-};
-
-// DESKTOP CONTROLS
-const keys={};
-let yaw=0,pitch=0;
-let locked=false;
-
-document.addEventListener('keydown',e=>{
-  keys[e.code]=true;
-
-  if(e.code==='KeyE') {
-    if(held) drop();
-    else grabNearest(camera.getWorldPosition(
-      new THREE.Vector3()
-    ));
-  }
-});
-
-document.addEventListener('keyup',e=>{
-  keys[e.code]=false;
-});
-
-renderer.domElement.addEventListener('click',()=>{
-  if(!renderer.xr.isPresenting)
-    renderer.domElement.requestPointerLock();
-});
-
-document.addEventListener('pointerlockchange',()=>{
-  locked=document.pointerLockElement===renderer.domElement;
-});
-
-document.addEventListener('mousemove',e=>{
-  if(!locked || renderer.xr.isPresenting) return;
-  yaw-=e.movementX*.002;
-  pitch-=e.movementY*.002;
-  pitch=Math.max(-1.5,Math.min(1.5,pitch));
-  camera.rotation.set(pitch,yaw,0,'YXZ');
-});
-
-document.addEventListener('mousedown',e=>{
-  if(e.button===0 && held) {
-    const direction=new THREE.Vector3();
-    camera.getWorldDirection(direction);
-    drop(direction.multiplyScalar(9));
-  }
-});
-
-let verticalSpeed=0;
-let grounded=false;
-
-// VR CONTROLLERS
-const controllers=[];
-const previousPositions=[];
-const squeezing=[];
-
-for(let i=0;i<2;i++) {
-  const c=renderer.xr.getController(i);
-  scene.add(c);
-  controllers.push(c);
-  previousPositions.push(new THREE.Vector3());
-  squeezing.push(false);
-
-  c.addEventListener('squeezestart',()=>{
-    squeezing[i]=true;
-    previousPositions[i].copy(c.position);
-  });
-
-  c.addEventListener('squeezeend',()=>{
-    squeezing[i]=false;
-  });
-
-  c.addEventListener('selectstart',()=>{
-    const p=c.getWorldPosition(new THREE.Vector3());
-    grabNearest(p);
-  });
-
-  c.addEventListener('selectend',()=>{
-    if(held) {
-      const direction=new THREE.Vector3(0,0,-1)
-        .applyQuaternion(c.quaternion);
-      drop(direction.multiplyScalar(7));
-    }
-  });
-}
-
-// VR button
-document.getElementById('vr').onclick=async()=>{
-  if(!navigator.xr) {
-    alert('WebXR is not available in this browser.');
+   if(!hand.initialized) {
+    hand.prevPos.copy(hand.currPos);
+    hand.initialized=true;
     return;
-  }
+   }
 
-  try {
-    const supported=await navigator.xr.isSessionSupported(
-      'immersive-vr'
+   const sphere=new THREE.Sphere(hand.currPos,this.data.handRadius);
+   let colliding=false;
+
+   for(let i=0;i<this.colliders.length;i++) {
+    if(this.colliders[i].intersectsSphere(sphere)) {
+     colliding=true;
+     break;
+    }
+   }
+
+   if(colliding) {
+    const delta=new THREE.Vector3().subVectors(
+     hand.currPos,hand.prevPos
     );
-    if(!supported) {
-      alert('VR is not supported on this device.');
-      return;
-    }
+    pushDisplacement.sub(delta);
+    isPushing=true;
+   }
 
-    const session=await navigator.xr.requestSession(
-      'immersive-vr',
-      {optionalFeatures:['local-floor','bounded-floor']}
-    );
-    renderer.xr.setSession(session);
-  } catch(e) {
-    alert('Could not start VR: '+e.message);
-  }
-};
+   hand.prevPos.copy(hand.currPos);
+  });
 
-document.getElementById('fullscreen').onclick=()=>{
-  document.documentElement.requestFullscreen?.();
-};
+  if(isPushing) {
+   this.rigPos.add(pushDisplacement);
 
-// MOVEMENT
-const direction=new THREE.Vector3();
-const forward=new THREE.Vector3();
-const right=new THREE.Vector3();
+   this.velocity.copy(pushDisplacement)
+    .divideScalar(dt)
+    .multiplyScalar(this.data.jumpMultiplier);
 
-function updateMovement() {
-  if(renderer.xr.isPresenting) {
-    // Gorilla-inspired arm push movement
-    for(let i=0;i<2;i++) {
-      if(!squeezing[i]) continue;
-
-      const current=controllers[i].getWorldPosition(
-        new THREE.Vector3()
-      );
-
-      const delta=current.clone().sub(previousPositions[i]);
-      rig.position.x-=delta.x*1.4;
-      rig.position.z-=delta.z*1.4;
-      rig.position.y-=delta.y*.7;
-
-      previousPositions[i].copy(current);
-    }
-
-    rig.position.y=Math.max(1.2,rig.position.y);
-    return;
+   this.velocity.clampLength(0,this.data.maxSpeed);
+  } else {
+   this.velocity.y+=this.data.gravity*dt;
+   this.rigPos.addScaledVector(this.velocity,dt);
   }
 
-  forward.set(-Math.sin(yaw),0,-Math.cos(yaw));
-  right.set(Math.cos(yaw),0,-Math.sin(yaw));
+  if(this.rigPos.y<0) {
+   this.rigPos.y=0;
+   this.velocity.y=0;
 
-  direction.set(0,0,0);
-
-  if(keys.KeyW) direction.add(forward);
-  if(keys.KeyS) direction.sub(forward);
-  if(keys.KeyD) direction.add(right);
-  if(keys.KeyA) direction.sub(right);
-
-  if(direction.lengthSq()>0) {
-    direction.normalize().multiplyScalar(.13);
-    rig.position.add(direction);
+   if(!isPushing) {
+    this.velocity.x*=0.85;
+    this.velocity.z*=0.85;
+   }
   }
-
-  if(keys.Space && grounded) {
-    verticalSpeed=.18;
-    grounded=false;
-  }
-
-  verticalSpeed-=.009;
-  rig.position.y+=verticalSpeed;
-
-  if(rig.position.y<1.7) {
-    rig.position.y=1.7;
-    verticalSpeed=0;
-    grounded=true;
-  }
-}
-
-// PHYSICS
-function updateObjects() {
-  for(const o of objects) {
-    const m=o.mesh;
-
-    if(o.held) {
-      const p=camera.getWorldPosition(new THREE.Vector3());
-      const d=new THREE.Vector3();
-      camera.getWorldDirection(d);
-      m.position.copy(p.add(d.multiplyScalar(.9)));
-      continue;
-    }
-
-    o.velocity.y-=.012;
-    m.position.add(o.velocity);
-    o.velocity.multiplyScalar(.97);
-
-    if(m.position.y<.5) {
-      m.position.y=.5;
-      o.velocity.y=Math.abs(o.velocity.y)*.55;
-    }
-
-    m.rotation.x+=.015;
-    m.rotation.y+=.02;
-  }
-}
-
-// GAME LOOP
-let lastBroadcast=0;
-
-renderer.setAnimationLoop(()=>{
-  updateMovement();
-  updateObjects();
-
-  const now=performance.now();
-  if(now-lastBroadcast>60) {
-    broadcast();
-    lastBroadcast=now;
-  }
-
-  renderer.render(scene,camera);
+ }
 });
 
-addEventListener('resize',()=>{
-  camera.aspect=innerWidth/innerHeight;
-  camera.updateProjectionMatrix();
-  renderer.setSize(innerWidth,innerHeight);
+
+// ========================================
+// BALL SPINNER
+// ========================================
+
+AFRAME.registerComponent('ball-spin',{
+ tick:function(t,dt) {
+  this.el.object3D.rotation.x+=dt*0.0005;
+  this.el.object3D.rotation.y+=dt*0.001;
+ }
 });
 
-document.getElementById('status').textContent=
-  'Ready! Explore the jungle.';
+
+// ========================================
+// DECORATIVE BOUNCE
+// ========================================
+
+AFRAME.registerComponent('floating',{
+ schema:{speed:{default:1}},
+ init:function() {
+  this.startY=this.el.object3D.position.y;
+ },
+ tick:function(t) {
+  this.el.object3D.position.y=
+   this.startY+Math.sin(t*0.001*this.data.speed)*0.12;
+ }
+});
+
 </script>
+
+
+<a-scene
+ background="color: #87CEEB"
+ shadow="type: pcfsoft"
+ renderer="antialias: true"
+ vr-mode-ui="enabled: true"
+>
+
+<a-assets>
+ <a-mixin id="wood" material="color:#795548; roughness:1"></a-mixin>
+ <a-mixin id="leaf" material="color:#236b38; roughness:1"></a-mixin>
+</a-assets>
+
+
+<!-- ================================== -->
+<!-- LIGHTING -->
+<!-- ================================== -->
+
+<a-light type="ambient" color="#ffffff" intensity="0.8"></a-light>
+
+<a-light
+ type="directional"
+ position="-5 10 5"
+ intensity="1.5"
+ cast-shadow="true">
+</a-light>
+
+
+<!-- ================================== -->
+<!-- PLAYER RIG -->
+<!-- ================================== -->
+
+<a-entity
+ id="player"
+ position="0 0 5"
+ gorilla-locomotion="
+  leftHand:#left-hand;
+  rightHand:#right-hand;
+  gravity:-9.8;
+  jumpMultiplier:1.3;
+  maxSpeed:12;
+  handRadius:0.12">
+
+ <a-camera position="0 1.6 0"
+  look-controls="enabled:true"
+  wasd-controls="enabled:false">
+ </a-camera>
+
+ <!-- LEFT VR HAND -->
+
+ <a-entity
+  id="left-hand"
+  hand-controls="hand:left; handModelStyle:lowPoly; color:#ff5555">
+
+  <a-sphere
+   radius="0.10"
+   color="#ff5555"
+   material="roughness:0.5">
+  </a-sphere>
+
+ </a-entity>
+
+ <!-- RIGHT VR HAND -->
+
+ <a-entity
+  id="right-hand"
+  hand-controls="hand:right; handModelStyle:lowPoly; color:#5555ff">
+
+  <a-sphere
+   radius="0.10"
+   color="#5555ff"
+   material="roughness:0.5">
+  </a-sphere>
+
+ </a-entity>
+
+</a-entity>
+
+
+<!-- ================================== -->
+<!-- MONKEY PLAYER MODEL -->
+<!-- ================================== -->
+
+<a-entity id="monkey" position="0 0 2">
+
+ <!-- BODY -->
+
+ <a-sphere
+  position="0 0.9 0"
+  radius="0.48"
+  scale="0.85 1.15 0.75"
+  color="#7b4b2c"
+  roughness="1">
+ </a-sphere>
+
+ <!-- BELLY -->
+
+ <a-sphere
+  position="0 0.9 -0.27"
+  radius="0.32"
+  scale="0.85 1.1 0.35"
+  color="#d8a477">
+ </a-sphere>
+
+ <!-- HEAD -->
+
+ <a-sphere
+  position="0 1.85 0"
+  radius="0.48"
+  color="#87512e">
+ </a-sphere>
+
+ <!-- FACE -->
+
+ <a-sphere
+  position="0 1.76 -0.37"
+  radius="0.27"
+  scale="1 0.75 0.55"
+  color="#d6a078">
+ </a-sphere>
+
+ <!-- EYES -->
+
+ <a-sphere
+  position="-0.17 1.98 -0.40"
+  radius="0.075"
+  color="white">
+ </a-sphere>
+
+ <a-sphere
+  position="0.17 1.98 -0.40"
+  radius="0.075"
+  color="white">
+ </a-sphere>
+
+ <!-- PUPILS -->
+
+ <a-sphere
+  position="-0.17 1.98 -0.465"
+  radius="0.035"
+  color="#111111">
+ </a-sphere>
+
+ <a-sphere
+  position="0.17 1.98 -0.465"
+  radius="0.035"
+  color="#111111">
+ </a-sphere>
+
+ <!-- NOSE -->
+
+ <a-sphere
+  position="0 1.79 -0.53"
+  radius="0.07"
+  scale="1.2 0.7 0.6"
+  color="#493027">
+ </a-sphere>
+
+ <!-- MOUTH -->
+
+ <a-torus
+  position="0 1.65 -0.48"
+  radius="0.09"
+  radius-tubular="0.018"
+  arc="180"
+  rotation="0 0 180"
+  color="#392018">
+ </a-torus>
+
+ <!-- ARMS -->
+
+ <a-cylinder
+  position="-0.58 0.95 0"
+  rotation="0 0 45"
+  radius="0.17"
+  height="0.85"
+  color="#7b4b2c">
+ </a-cylinder>
+
+ <a-cylinder
+  position="0.58 0.95 0"
+  rotation="0 0 -45"
+  radius="0.17"
+  height="0.85"
+  color="#7b4b2c">
+ </a-cylinder>
+
+ <!-- LEGS -->
+
+ <a-cylinder
+  position="-0.23 0.27 0"
+  radius="0.16"
+  height="0.55"
+  color="#60391f">
+ </a-cylinder>
+
+ <a-cylinder
+  position="0.23 0.27 0"
+  radius="0.16"
+  height="0.55"
+  color="#60391f">
+ </a-cylinder>
+
+ <!-- TAIL -->
+
+ <a-torus
+  position="0 0.55 0.55"
+  rotation="90 0 0"
+  radius="0.3"
+  radius-tubular="0.09"
+  color="#7b4b2c">
+ </a-torus>
+
+</a-entity>
+
+
+<!-- ================================== -->
+<!-- WORLD FLOOR -->
+<!-- ================================== -->
+
+<a-plane
+ class="collidable"
+ position="0 0 0"
+ rotation="-90 0 0"
+ width="50"
+ height="50"
+ color="#378a42"
+ shadow="receive:true">
+</a-plane>
+
+
+<!-- ================================== -->
+<!-- CLIMBING PLATFORMS -->
+<!-- ================================== -->
+
+<a-box class="collidable"
+ position="0 0.75 -2"
+ width="2" height="1.5" depth="1"
+ color="#8D6E63">
+</a-box>
+
+<a-box class="collidable"
+ position="2.5 1.5 -3"
+ width="1" height="3" depth="4"
+ color="#795548">
+</a-box>
+
+<a-box class="collidable"
+ position="-2.5 1.5 -3"
+ width="1" height="3" depth="4"
+ color="#795548">
+</a-box>
+
+<a-box class="collidable"
+ position="0 3 -7"
+ width="5" height="0.5" depth="3"
+ color="#795548">
+</a-box>
+
+<a-box class="collidable"
+ position="5 2 -8"
+ width="3" height="0.5" depth="3"
+ color="#8D6E63">
+</a-box>
+
+<a-box class="collidable"
+ position="-5 2 -8"
+ width="3" height="0.5" depth="3"
+ color="#8D6E63">
+</a-box>
+
+<a-box class="collidable"
+ position="0 4 -12"
+ width="4" height="0.5" depth="4"
+ color="#795548">
+</a-box>
+
+
+<!-- ================================== -->
+<!-- TREES -->
+<!-- ================================== -->
+
+<script>
+const scene=document.querySelector('a-scene');
+
+function makeTree(x,z,h) {
+ const trunk=document.createElement('a-cylinder');
+ trunk.setAttribute('position',`${x} ${h/2} ${z}`);
+ trunk.setAttribute('radius','0.3');
+ trunk.setAttribute('height',h);
+ trunk.setAttribute('color','#684025');
+ scene.appendChild(trunk);
+
+ for(let i=0;i<3;i++) {
+  const leaves=document.createElement('a-sphere');
+  leaves.setAttribute('position',
+   `${x} ${h+i*0.55} ${z}`);
+  leaves.setAttribute('radius',`${1.1-i*.15}`);
+  leaves.setAttribute('color',
+   i===0?'#164d29':'#267a38');
+  scene.appendChild(leaves);
+ }
+}
+
+for(let i=0;i<35;i++) {
+ const x=(Math.random()-.5)*35;
+ const z=(Math.random()-.5)*35;
+
+ if(Math.abs(x)<4 && Math.abs(z)<4) continue;
+
+ makeTree(x,z,3+Math.random()*2);
+}
+</script>
+
+
+<!-- ================================== -->
+<!-- PICKUP-STYLE BALLS / DECORATION -->
+<!-- ================================== -->
+
+<a-sphere
+ position="2 0.5 1"
+ radius="0.35"
+ color="#ff3333"
+ ball-spin
+ floating>
+</a-sphere>
+
+<a-sphere
+ position="-2 0.5 0"
+ radius="0.35"
+ color="#3399ff"
+ ball-spin
+ floating>
+</a-sphere>
+
+<a-sphere
+ position="4 0.5 -5"
+ radius="0.35"
+ color="#ffff33"
+ ball-spin
+ floating>
+</a-sphere>
+
+<a-sphere
+ position="-4 0.5 -5"
+ radius="0.35"
+ color="#bb44ff"
+ ball-spin
+ floating>
+</a-sphere>
+
+
+<!-- ================================== -->
+<!-- SKY DECORATION -->
+<!-- ================================== -->
+
+<a-sphere
+ position="0 15 -25"
+ radius="4"
+ color="#fff1a6"
+ material="shader:flat">
+</a-sphere>
+
+<a-sky color="#87CEEB"></a-sky>
+
+</a-scene>
+
 </body>
 </html>
