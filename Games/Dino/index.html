@@ -1,0 +1,436 @@
+
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>JJPlayz - Minecraft Runner</title>
+
+<style>
+* { box-sizing: border-box; }
+
+body {
+    margin: 0;
+    background: #101010;
+    color: white;
+    font-family: monospace;
+    overflow-x: hidden;
+    user-select: none;
+}
+
+header {
+    padding: 15px;
+    background: #171717;
+    border-bottom: 3px solid #e32626;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.logo {
+    color: #ff3333;
+    font-size: 23px;
+    font-weight: bold;
+}
+
+.logo span { color: white; }
+
+header small {
+    color: #888;
+}
+
+main {
+    max-width: 1000px;
+    margin: 35px auto;
+    padding: 15px;
+}
+
+h1 {
+    text-align: center;
+    color: #ff3333;
+    font-size: clamp(28px, 6vw, 45px);
+}
+
+.subtitle {
+    text-align: center;
+    color: #999;
+}
+
+.game {
+    position: relative;
+    background: #a6d9ff;
+    border: 4px solid #333;
+    border-radius: 10px;
+    overflow: hidden;
+}
+
+canvas {
+    width: 100%;
+    display: block;
+    image-rendering: pixelated;
+    touch-action: manipulation;
+}
+
+.info {
+    display: flex;
+    justify-content: space-between;
+    padding: 15px;
+    background: #1b1b1b;
+    font-size: 17px;
+}
+
+.score { color: #ff4444; }
+
+.controls {
+    text-align: center;
+    padding: 20px;
+}
+
+button {
+    background: #d92727;
+    border: 0;
+    padding: 14px 25px;
+    border-radius: 7px;
+    color: white;
+    font-weight: bold;
+    font-family: monospace;
+    font-size: 16px;
+    cursor: pointer;
+}
+
+button:hover { background: #ff4444; }
+
+.instructions {
+    color: #aaa;
+    text-align: center;
+    line-height: 1.8;
+}
+
+footer {
+    text-align: center;
+    color: #666;
+    padding: 25px;
+}
+</style>
+</head>
+
+<body>
+
+<header>
+    <div class="logo">JJ<span>PLAYZ</span></div>
+    <small>MINECRAFT RUNNER</small>
+</header>
+
+<main>
+
+<h1>⛏ JJPLAYZ RUNNER</h1>
+<p class="subtitle">Survive the endless Minecraft desert!</p>
+
+<div class="game">
+    <canvas id="game" width="900" height="350"></canvas>
+</div>
+
+<div class="info">
+    <div>SCORE: <span class="score" id="score">0</span></div>
+    <div>BEST: <span class="score" id="best">0</span></div>
+</div>
+
+<div class="controls">
+    <button id="start">START GAME</button>
+    <p class="instructions">
+        SPACE / ARROW UP = JUMP<br>
+        PHONE = TAP THE GAME<br>
+        Avoid the Minecraft cacti!
+    </p>
+</div>
+
+</main>
+
+<footer>
+    JJPlayz Runner | Player: Raphi1602<br>
+    Made by JJPlayz
+</footer>
+
+<script>
+const canvas = document.getElementById("game");
+const ctx = canvas.getContext("2d");
+
+const scoreText = document.getElementById("score");
+const bestText = document.getElementById("best");
+const startButton = document.getElementById("start");
+
+const W = canvas.width;
+const H = canvas.height;
+const ground = 285;
+
+let player = {
+    x: 100,
+    y: ground - 65,
+    w: 43,
+    h: 65,
+    vy: 0,
+    jumping: false
+};
+
+let obstacles = [];
+let particles = [];
+
+let score = 0;
+let best = 0;
+let speed = 6;
+let running = false;
+let gameOver = false;
+let frame = 0;
+let groundOffset = 0;
+let spawnTimer = 0;
+
+const gravity = 0.8;
+const jumpPower = -16;
+
+const skin = new Image();
+skin.src = "https://mc-heads.net/body/Raphi1602/100";
+
+let skinLoaded = false;
+skin.onload = () => skinLoaded = true;
+
+function rectangle(x,y,w,h,color) {
+    ctx.fillStyle = color;
+    ctx.fillRect(x,y,w,h);
+}
+
+function drawBackground() {
+    // Sky
+    rectangle(0,0,W,H,"#a6d9ff");
+
+    // Sun
+    ctx.fillStyle = "#fff4a6";
+    ctx.beginPath();
+    ctx.arc(760,65,32,0,Math.PI*2);
+    ctx.fill();
+
+    // Clouds
+    ctx.fillStyle = "#ffffff";
+
+    for(let i=0;i<4;i++) {
+        let x = ((i*280-frame*0.3)%1050+1050)%1050;
+
+        ctx.fillRect(x,75,65,18);
+        ctx.fillRect(x+15,60,35,20);
+    }
+
+    // Distant Minecraft hills
+    rectangle(0,220,W,65,"#86bb65");
+
+    for(let i=0;i<8;i++) {
+        let x = ((i*160-frame*0.7)%1050+1050)%1050;
+        rectangle(x,205,90,25,"#70a94e");
+    }
+
+    // Grass and dirt
+    rectangle(0,ground,W,H-ground,"#76502e");
+    rectangle(0,ground,W,12,"#56a83e");
+
+    // Grass texture
+    for(let x=-30;x<W+30;x+=35) {
+        let px = ((x-groundOffset)%35+35)%35;
+        rectangle(px,ground+15,18,4,"#96653c");
+        rectangle(px+12,ground+42,12,4,"#59391f");
+    }
+}
+
+function drawPlayer() {
+    if(skinLoaded) {
+        ctx.drawImage(
+            skin,
+            player.x,
+            player.y,
+            player.w,
+            player.h
+        );
+    } else {
+        // Fallback Minecraft character
+        rectangle(player.x,player.y,player.w,player.h,"#2459ad");
+        rectangle(player.x+5,player.y-18,33,25,"#d5a078");
+        rectangle(player.x+5,player.y+25,33,20,"#1682d0");
+    }
+}
+
+function drawCactus(x,y) {
+    // Minecraft-style cactus
+    const unit = 10;
+
+    rectangle(x+10,y,20,65,"#269b3d");
+    rectangle(x,y+20,12,30,"#269b3d");
+    rectangle(x,y+15,10,12,"#269b3d");
+    rectangle(x+30,y+30,12,28,"#269b3d");
+    rectangle(x+30,y+25,10,12,"#269b3d");
+
+    // Pixel highlights
+    rectangle(x+13,y+5,4,48,"#64d35c");
+    rectangle(x+23,y+12,3,45,"#14772c");
+
+    // Spikes
+    rectangle(x+5,y+27,3,5,"#b8e5a3");
+    rectangle(x+34,y+42,3,5,"#b8e5a3");
+}
+
+function drawOverlay(title,subtitle) {
+    ctx.fillStyle = "#0009";
+    ctx.fillRect(0,0,W,H);
+
+    ctx.textAlign = "center";
+    ctx.fillStyle = "#ff3939";
+    ctx.font = "bold 43px monospace";
+    ctx.fillText(title,W/2,145);
+
+    ctx.fillStyle = "white";
+    ctx.font = "19px monospace";
+    ctx.fillText(subtitle,W/2,185);
+}
+
+function jump() {
+    if(!running) {
+        if(gameOver) return;
+        startGame();
+        return;
+    }
+
+    if(!player.jumping) {
+        player.vy = jumpPower;
+        player.jumping = true;
+    }
+}
+
+function startGame() {
+    player.y = ground-65;
+    player.vy = 0;
+    player.jumping = false;
+
+    obstacles = [];
+    particles = [];
+
+    score = 0;
+    speed = 6;
+    frame = 0;
+    spawnTimer = 70;
+    running = true;
+    gameOver = false;
+
+    scoreText.textContent = "0";
+    startButton.textContent = "RESTART GAME";
+}
+
+function collision(a,b) {
+    return a.x+8 < b.x+b.w-5 &&
+           a.x+a.w-8 > b.x+5 &&
+           a.y+8 < b.y+b.h-5 &&
+           a.y+a.h-5 > b.y+5;
+}
+
+function spawnObstacle() {
+    obstacles.push({
+        x: W+30,
+        y: ground-65,
+        w: 42,
+        h: 65
+    });
+}
+
+function update() {
+    if(!running) return;
+
+    frame++;
+    score += 0.12;
+    speed = Math.min(14,6+score/150);
+
+    scoreText.textContent = Math.floor(score);
+
+    groundOffset += speed;
+
+    // Player physics
+    player.vy += gravity;
+    player.y += player.vy;
+
+    if(player.y >= ground-65) {
+        player.y = ground-65;
+        player.vy = 0;
+        player.jumping = false;
+    }
+
+    // Obstacle spawning
+    spawnTimer--;
+
+    if(spawnTimer <= 0) {
+        spawnObstacle();
+        spawnTimer = 85 + Math.random()*65;
+    }
+
+    // Move obstacles
+    for(let o of obstacles) {
+        o.x -= speed;
+
+        if(collision(player,o)) {
+            endGame();
+        }
+    }
+
+    obstacles = obstacles.filter(o=>o.x>-60);
+}
+
+function endGame() {
+    running = false;
+    gameOver = true;
+
+    best = Math.max(best,Math.floor(score));
+    bestText.textContent = best;
+
+    startButton.textContent = "PLAY AGAIN";
+}
+
+function render() {
+    drawBackground();
+
+    for(let o of obstacles) {
+        drawCactus(o.x,o.y);
+    }
+
+    drawPlayer();
+
+    if(!running && !gameOver) {
+        drawOverlay("JJPLAYZ RUNNER","Press START to play!");
+    }
+
+    if(gameOver) {
+        drawOverlay("GAME OVER!","Score: "+Math.floor(score));
+    }
+}
+
+function loop() {
+    update();
+    render();
+    requestAnimationFrame(loop);
+}
+
+startButton.addEventListener("click",startGame);
+
+document.addEventListener("keydown",e=>{
+    if(e.code==="Space" || e.code==="ArrowUp") {
+        e.preventDefault();
+        if(gameOver) startGame();
+        else jump();
+    }
+});
+
+canvas.addEventListener("pointerdown",()=>{
+    if(gameOver) startGame();
+    else jump();
+});
+
+bestText.textContent = best;
+
+loop();
+</script>
+
+</body>
+</html>
