@@ -1,0 +1,131 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Primal Rush — WebXR</title>
+<meta name="description" content="Primal Rush — a browser-based VR arm-locomotion prototype.">
+<style>
+:root{color-scheme:dark;font-family:Inter,system-ui,Arial,sans-serif}
+*{box-sizing:border-box}html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#080d12;color:#f4f7fa}
+canvas{display:block}#hud{position:fixed;inset:0;pointer-events:none;display:flex;flex-direction:column;justify-content:space-between;padding:22px}
+.top{display:flex;justify-content:space-between;align-items:flex-start;gap:12px}
+.brand{font-size:clamp(24px,5vw,42px);font-weight:1000;letter-spacing:.08em;text-transform:uppercase;text-shadow:0 4px 24px #000}
+.brand span{color:#9cff45}.tag{color:#c3d0d9;font-size:12px;letter-spacing:.22em;font-weight:800}
+.panel{pointer-events:auto;align-self:center;text-align:center;max-width:520px;width:min(92vw,520px);padding:26px;border:1px solid #ffffff24;border-radius:22px;background:#071018d9;box-shadow:0 20px 80px #0009;backdrop-filter:blur(14px)}
+h1{font-size:clamp(34px,8vw,58px);line-height:.95;margin:0 0 10px;letter-spacing:-.04em}
+h1 em{font-style:normal;color:#9cff45}
+p{color:#bdc9d1;line-height:1.55}
+button{border:0;border-radius:999px;padding:14px 22px;font-weight:900;letter-spacing:.08em;text-transform:uppercase;cursor:pointer;background:#9cff45;color:#10170b;margin:6px;min-width:150px}
+button.secondary{background:#263642;color:#eef5fa}
+#status{font-size:12px;color:#b7c5ce;margin-top:12px}
+#hint{font-size:12px;color:#c6d0d7;text-align:center;text-shadow:0 2px 8px #000}
+#reticle{position:fixed;left:50%;top:50%;width:5px;height:5px;border-radius:50%;background:#dfffcc;box-shadow:0 0 14px #9cff45;pointer-events:none}
+.hidden{display:none!important}
+</style>
+</head>
+<body>
+<div id="hud">
+  <div class="top"><div><div class="brand">PRIMAL <span>RUSH</span></div><div class="tag">MOVE WITH YOUR HANDS</div></div><div class="tag">WEBXR PROTOTYPE</div></div>
+  <section class="panel" id="menu">
+    <div class="tag">WELCOME TO THE WILD</div>
+    <h1>PRIMAL <em>RUSH</em></h1>
+    <p>Push against the world with your hands. Swing, climb and explore the arena in VR.</p>
+    <button id="vr">ENTER VR</button><button class="secondary" id="desktop">DESKTOP PREVIEW</button>
+    <div id="status">For VR, open this page in Meta Quest Browser over HTTPS.</div>
+  </section>
+  <div id="hint">VR: use both motion controllers as hands · Desktop: WASD + mouse to look</div>
+</div>
+<div id="reticle"></div>
+<script type="module">
+import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js';
+
+const status=document.querySelector('#status'), menu=document.querySelector('#menu');
+const scene=new THREE.Scene(); scene.background=new THREE.Color(0x8bc6dc); scene.fog=new THREE.Fog(0x8bc6dc,18,75);
+const camera=new THREE.PerspectiveCamera(70,innerWidth/innerHeight,.05,150);
+camera.position.set(0,1.65,5);
+const renderer=new THREE.WebGLRenderer({antialias:true});
+renderer.setPixelRatio(Math.min(devicePixelRatio,2)); renderer.setSize(innerWidth,innerHeight);
+renderer.xr.enabled=true; renderer.shadowMap.enabled=true; renderer.shadowMap.type=THREE.PCFSoftShadowMap;
+document.body.appendChild(renderer.domElement);
+scene.add(new THREE.HemisphereLight(0xdaf5ff,0x34452a,2));
+const sun=new THREE.DirectionalLight(0xffffff,2.1);sun.position.set(-8,15,7);sun.castShadow=true;scene.add(sun);
+const mat=(c,r=.85)=>new THREE.MeshStandardMaterial({color:c,roughness:r});
+const groundMat=mat(0x365b35), rockMat=mat(0x65736f), bright=mat(0x9cff45), wood=mat(0x76543a);
+const floor=new THREE.Mesh(new THREE.PlaneGeometry(100,100),groundMat);floor.rotation.x=-Math.PI/2;floor.receiveShadow=true;scene.add(floor);
+const obstacles=[];
+function box(x,y,z,w,h,d,m=rockMat){const o=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),m);o.position.set(x,y,z);o.castShadow=true;o.receiveShadow=true;scene.add(o);obstacles.push({x,y,z,w,h,d});return o}
+function cylinder(x,y,z,r,h,m){const o=new THREE.Mesh(new THREE.CylinderGeometry(r,r,h,10),m);o.position.set(x,y,z);o.castShadow=true;scene.add(o);return o}
+// A small stylised forest training arena
+for(let i=0;i<18;i++){let a=i/18*Math.PI*2,rad=17+(i%3)*2,x=Math.cos(a)*rad,z=Math.sin(a)*rad;cylinder(x,2,z,.55,4,wood);let crown=new THREE.Mesh(new THREE.IcosahedronGeometry(2.2,1),mat(i%2?0x2e7c42:0x397f48));crown.position.set(x,5,z);crown.castShadow=true;scene.add(crown)}
+box(0,1.1,-8,7,2.2,1.2);box(-7,2,-2,1.2,4,7);box(7,2,-1,1.2,4,7);
+box(0,4,-14,8,.7,1.2,bright);box(-4,1.5,5,3,3,1.1,wood);box(4,1.5,4,3,3,1.1,wood);
+for(let i=0;i<12;i++){let x=(Math.random()-.5)*24,z=(Math.random()-.5)*24;if(Math.abs(x)>9||Math.abs(z)>9)cylinder(x,.35,z,.25,.7,bright)}
+// Decorative floating title stone
+const ring=new THREE.Mesh(new THREE.TorusGeometry(2.3,.12,12,64),bright);ring.position.set(0,3,-11);scene.add(ring);
+
+// VR hands are attached to controller grip poses. Push-off movement is driven by hand displacement.
+const handGeo=new THREE.IcosahedronGeometry(.14,2), handMat=mat(0xeaffdf,.45);
+const hands=[0,1].map(()=>{let m=new THREE.Mesh(handGeo,handMat);m.castShadow=true;scene.add(m);return m});
+const controllers=[renderer.xr.getController(0),renderer.xr.getController(1)];
+controllers.forEach(c=>scene.add(c));
+let prevHands=[null,null],velocity=new THREE.Vector3(),body=new THREE.Vector3(0,0,0),lastTime=performance.now(),desktop=false;
+const keys={};let yaw=0,pitch=0,mouseDown=false;
+function handWorld(i){
+ const c=controllers[i];if(renderer.xr.isPresenting&&c.visible){const p=new THREE.Vector3();c.getWorldPosition(p);return p}
+ // desktop hand placeholders
+ const side=i===0?-1:1;return new THREE.Vector3().setFromMatrixPosition(camera.matrixWorld).add(new THREE.Vector3(side*.35,-.35,-.65).applyQuaternion(camera.quaternion));
+}
+function collides(p){
+ // collision against arena boxes, treating player as a small sphere
+ for(const b of obstacles){if(p.x>b.x-b.w/2-.28&&p.x<b.x+b.w/2+.28&&p.y>b.y-b.h/2-.8&&p.y<b.y+b.h/2+.8&&p.z>b.z-b.d/2-.28&&p.z<b.z+b.d/2+.28)return true}
+ return false;
+}
+function updateHands(dt){
+ for(let i=0;i<2;i++){
+  let p=handWorld(i);hands[i].position.copy(p);
+  if(prevHands[i]){
+   const delta=p.clone().sub(prevHands[i]);
+   // When a hand is moving backward/down against a nearby surface, propel the player oppositely.
+   const probe=p.clone();let supported=collides(probe)||p.y<.22;
+   if(supported){let push=delta.clone().multiplyScalar(-2.8);push.y=Math.max(0,push.y);velocity.add(push.clampLength(0,5));}
+  }
+  prevHands[i]=p.clone();
+ }
+}
+function animate(){
+ const now=performance.now(),dt=Math.min((now-lastTime)/1000,.04);lastTime=now;
+ if(desktop){
+  const forward=new THREE.Vector3(-Math.sin(yaw),0,-Math.cos(yaw)),right=new THREE.Vector3(Math.cos(yaw),0,-Math.sin(yaw));
+  let wish=new THREE.Vector3();if(keys.KeyW)wish.add(forward);if(keys.KeyS)wish.sub(forward);if(keys.KeyD)wish.add(right);if(keys.KeyA)wish.sub(right);
+  if(wish.lengthSq())velocity.add(wish.normalize().multiplyScalar(9*dt));
+  camera.position.y=1.65;camera.rotation.set(pitch,yaw,0,'YXZ');
+ }
+ updateHands(dt);
+ velocity.y-=9.8*dt;
+ let next=camera.position.clone().addScaledVector(velocity,dt);
+ if(next.y<1.35){next.y=1.35;velocity.y=Math.max(0,velocity.y)}
+ if(collides(next))velocity.multiplyScalar(.15);else camera.position.copy(next);
+ velocity.multiplyScalar(Math.pow(.985,dt*60));
+ // Keep the camera within the arena.
+ camera.position.x=THREE.MathUtils.clamp(camera.position.x,-22,22);camera.position.z=THREE.MathUtils.clamp(camera.position.z,-22,22);
+ renderer.render(scene,camera);
+}
+renderer.setAnimationLoop(animate);
+document.querySelector('#vr').addEventListener('click',async()=>{
+ try{
+  if(!navigator.xr){status.textContent='WebXR is not available in this browser. Try Meta Quest Browser over HTTPS.';return}
+  const supported=await navigator.xr.isSessionSupported('immersive-vr');
+  if(!supported){status.textContent='Immersive VR is not supported here. Open on a compatible VR headset.';return}
+  const session=await navigator.xr.requestSession('immersive-vr',{optionalFeatures:['local-floor','bounded-floor']});
+  await renderer.xr.setSession(session);menu.classList.add('hidden');session.addEventListener('end',()=>menu.classList.remove('hidden'));
+ }catch(e){status.textContent='Could not start VR: '+e.message}
+});
+document.querySelector('#desktop').addEventListener('click',()=>{desktop=true;menu.classList.add('hidden');status.textContent=''});
+addEventListener('keydown',e=>keys[e.code]=true);addEventListener('keyup',e=>keys[e.code]=false);
+renderer.domElement.addEventListener('click',()=>{if(desktop)renderer.domElement.requestPointerLock?.()});
+addEventListener('mousemove',e=>{if(desktop&&document.pointerLockElement){yaw-=e.movementX*.002;pitch=THREE.MathUtils.clamp(pitch-e.movementY*.002,-1.2,1.2)}});
+addEventListener('resize',()=>{camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();renderer.setSize(innerWidth,innerHeight)});
+</script>
+</body>
+</html>
