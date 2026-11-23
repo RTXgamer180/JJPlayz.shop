@@ -1,0 +1,269 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>JJPlayz Game Locator</title>
+
+<style>
+* { box-sizing: border-box; }
+
+body {
+    margin: 0;
+    padding: 25px;
+    background: #090b14;
+    color: white;
+    font-family: Arial, sans-serif;
+}
+
+header {
+    text-align: center;
+    padding: 30px 10px;
+}
+
+h1 {
+    color: #a78bfa;
+    font-size: 34px;
+}
+
+#status {
+    color: #aaa;
+    margin: 15px;
+    text-align: center;
+}
+
+#games {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+    gap: 15px;
+    max-width: 1100px;
+    margin: auto;
+}
+
+.game {
+    background: #171a2b;
+    border: 1px solid #30334e;
+    border-radius: 14px;
+    padding: 20px;
+    transition: .2s;
+}
+
+.game:hover {
+    transform: translateY(-4px);
+    border-color: #a78bfa;
+}
+
+.game h2 {
+    margin-top: 0;
+    color: #c4b5fd;
+}
+
+.game a {
+    display: block;
+    color: #a78bfa;
+    word-break: break-all;
+    margin: 12px 0;
+    font-size: 13px;
+}
+
+button {
+    background: #8b5cf6;
+    color: white;
+    border: 0;
+    padding: 11px 15px;
+    border-radius: 8px;
+    cursor: pointer;
+    margin: 4px 2px;
+}
+
+button:hover { background: #7042d6; }
+
+#search {
+    display: block;
+    width: 100%;
+    max-width: 500px;
+    margin: 20px auto;
+    padding: 14px;
+    background: #171a2b;
+    color: white;
+    border: 1px solid #444;
+    border-radius: 10px;
+}
+
+footer {
+    text-align: center;
+    margin-top: 40px;
+    color: #666;
+}
+</style>
+</head>
+
+<body>
+
+<header>
+    <h1>🎮 JJPlayz Game Locator</h1>
+    <p>Automatically discovering all available games.</p>
+    <button onclick="scan()">⟳ Rescan Games</button>
+</header>
+
+<p id="status">Connecting to GitHub...</p>
+
+<input
+    id="search"
+    placeholder="Search games..."
+    oninput="filterGames()"
+>
+
+<div id="games"></div>
+
+<footer>
+    JJPlayz.shop · Automatic Game Discovery
+</footer>
+
+<script>
+const CONFIG = {
+    owner: "RTXgamer180",
+    repo: "JJPlayz.shop",
+    folder: "Games"
+};
+
+let detectedGames = [];
+
+async function scan() {
+    const status = document.getElementById("status");
+    const container = document.getElementById("games");
+
+    status.textContent = "🔍 Scanning GitHub repository...";
+    container.innerHTML = "";
+
+    try {
+        // Get repository information
+        const repoResponse = await fetch(
+            `https://api.github.com/repos/${CONFIG.owner}/${CONFIG.repo}`
+        );
+
+        if (!repoResponse.ok) {
+            throw new Error("Repository not found or inaccessible.");
+        }
+
+        const repo = await repoResponse.json();
+        const branch = repo.default_branch;
+
+        // Get complete repository file tree
+        const treeResponse = await fetch(
+            `https://api.github.com/repos/${CONFIG.owner}/${CONFIG.repo}/git/trees/${encodeURIComponent(branch)}?recursive=1`
+        );
+
+        if (!treeResponse.ok) {
+            throw new Error("Could not retrieve repository files.");
+        }
+
+        const data = await treeResponse.json();
+
+        if (data.truncated) {
+            throw new Error("Repository is too large for one complete scan.");
+        }
+
+        const prefix = CONFIG.folder + "/";
+        const files = data.tree.filter(item =>
+            item.type === "blob" &&
+            item.path.startsWith(prefix)
+        );
+
+        // Detect first-level game folders containing index.html
+        const gameFolders = new Set();
+
+        for (const file of files) {
+            const remainder = file.path.slice(prefix.length);
+            const parts = remainder.split("/");
+
+            if (
+                parts.length >= 2 &&
+                parts[1] === "index.html"
+            ) {
+                gameFolders.add(parts[0]);
+            }
+        }
+
+        detectedGames = [...gameFolders].sort(
+            (a, b) => a.localeCompare(b)
+        );
+
+        renderGames();
+
+        status.textContent =
+            `✅ Found ${detectedGames.length} games!`;
+
+    } catch (error) {
+        status.textContent = "❌ " + error.message;
+
+        container.innerHTML = `
+            <p>Make sure the repository is public and the GitHub API is available.</p>
+        `;
+
+        console.error(error);
+    }
+}
+
+function renderGames() {
+    const container = document.getElementById("games");
+    container.innerHTML = "";
+
+    detectedGames.forEach(name => {
+        const url =
+            `${location.origin}/${CONFIG.repo}/${CONFIG.folder}/${encodeURIComponent(name)}/`;
+
+        const card = document.createElement("div");
+        card.className = "game";
+
+        const title = document.createElement("h2");
+        title.textContent = "🎮 " + name;
+
+        const link = document.createElement("a");
+        link.href = url;
+        link.textContent = url;
+
+        const open = document.createElement("button");
+        open.textContent = "▶ Play Game";
+        open.onclick = () => window.open(url, "_blank");
+
+        const copy = document.createElement("button");
+        copy.textContent = "📋 Copy URL";
+        copy.onclick = async () => {
+            try {
+                await navigator.clipboard.writeText(url);
+                copy.textContent = "✓ Copied!";
+            } catch {
+                copy.textContent = "Copy unavailable";
+            }
+        };
+
+        card.append(title, link, open, copy);
+        container.appendChild(card);
+    });
+
+    if (!detectedGames.length) {
+        container.textContent = "No games with index.html were found.";
+    }
+}
+
+function filterGames() {
+    const query = document
+        .getElementById("search")
+        .value.toLowerCase();
+
+    document.querySelectorAll(".game").forEach(card => {
+        card.style.display =
+            card.textContent.toLowerCase().includes(query)
+                ? ""
+                : "none";
+    });
+}
+
+// Automatically scan when the page loads
+scan();
+</script>
+
+</body>
+</html>
