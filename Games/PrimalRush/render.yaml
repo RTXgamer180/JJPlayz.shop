@@ -1,0 +1,7 @@
+services:
+  - type: web
+    name: primal-rush-server
+    runtime: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn --worker-class gthread --threads 100 --timeout 120 app:app

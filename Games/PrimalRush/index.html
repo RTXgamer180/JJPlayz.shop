@@ -3,129 +3,202 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>Primal Rush — WebXR</title>
-<meta name="description" content="Primal Rush — a browser-based VR arm-locomotion prototype.">
+<title>Primal Rush — Multiplayer WebXR</title>
+<meta name="description" content="Primal Rush — hand-locomotion multiplayer WebXR prototype.">
 <style>
 :root{color-scheme:dark;font-family:Inter,system-ui,Arial,sans-serif}
 *{box-sizing:border-box}html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#080d12;color:#f4f7fa}
-canvas{display:block}#hud{position:fixed;inset:0;pointer-events:none;display:flex;flex-direction:column;justify-content:space-between;padding:22px}
+canvas{display:block}
+#hud{position:fixed;inset:0;pointer-events:none;display:flex;flex-direction:column;justify-content:space-between;padding:16px}
 .top{display:flex;justify-content:space-between;align-items:flex-start;gap:12px}
-.brand{font-size:clamp(24px,5vw,42px);font-weight:1000;letter-spacing:.08em;text-transform:uppercase;text-shadow:0 4px 24px #000}
-.brand span{color:#9cff45}.tag{color:#c3d0d9;font-size:12px;letter-spacing:.22em;font-weight:800}
-.panel{pointer-events:auto;align-self:center;text-align:center;max-width:520px;width:min(92vw,520px);padding:26px;border:1px solid #ffffff24;border-radius:22px;background:#071018d9;box-shadow:0 20px 80px #0009;backdrop-filter:blur(14px)}
-h1{font-size:clamp(34px,8vw,58px);line-height:.95;margin:0 0 10px;letter-spacing:-.04em}
-h1 em{font-style:normal;color:#9cff45}
-p{color:#bdc9d1;line-height:1.55}
-button{border:0;border-radius:999px;padding:14px 22px;font-weight:900;letter-spacing:.08em;text-transform:uppercase;cursor:pointer;background:#9cff45;color:#10170b;margin:6px;min-width:150px}
-button.secondary{background:#263642;color:#eef5fa}
-#status{font-size:12px;color:#b7c5ce;margin-top:12px}
-#hint{font-size:12px;color:#c6d0d7;text-align:center;text-shadow:0 2px 8px #000}
-#reticle{position:fixed;left:50%;top:50%;width:5px;height:5px;border-radius:50%;background:#dfffcc;box-shadow:0 0 14px #9cff45;pointer-events:none}
+.brand{font-size:clamp(22px,4vw,38px);font-weight:1000;letter-spacing:.08em;text-transform:uppercase;text-shadow:0 4px 24px #000}
+.brand span{color:#9cff45}.tag{color:#c3d0d9;font-size:11px;letter-spacing:.18em;font-weight:800}
+.panel{pointer-events:auto;align-self:center;text-align:center;max-width:540px;width:min(94vw,540px);padding:22px;border:1px solid #ffffff24;border-radius:22px;background:#071018ed;box-shadow:0 20px 80px #0009;backdrop-filter:blur(14px);max-height:88vh;overflow:auto}
+h1{font-size:clamp(32px,8vw,56px);line-height:.95;margin:0 0 10px;letter-spacing:-.04em}
+h1 em{font-style:normal;color:#9cff45}p{color:#bdc9d1;line-height:1.5}
+button{border:0;border-radius:12px;padding:11px 15px;font-weight:900;letter-spacing:.05em;text-transform:uppercase;cursor:pointer;background:#9cff45;color:#10170b;margin:4px;min-height:42px}
+button.secondary{background:#263642;color:#eef5fa}button:disabled{opacity:.45;cursor:not-allowed}
+input{width:100%;padding:12px;border-radius:10px;border:1px solid #52616c;background:#101c25;color:#fff;font-size:16px;margin:4px 0 8px}
+label{display:block;text-align:left;color:#c6d0d7;font-size:11px;font-weight:800;letter-spacing:.12em;margin-top:8px}
+#status{font-size:12px;color:#b7c5ce;margin-top:10px;min-height:18px}
+#hint{font-size:12px;color:#e5edf2;text-align:center;text-shadow:0 2px 8px #000;max-width:760px;margin:0 auto}
 .hidden{display:none!important}
+#roomHud{position:fixed;right:16px;top:76px;padding:10px 13px;border:1px solid #ffffff2b;border-radius:12px;background:#071018bd;font-size:12px;pointer-events:none;display:none}
+#computer{position:fixed;inset:0;background:#03090bd9;display:none;align-items:center;justify-content:center;padding:14px;pointer-events:auto}
+.pc{width:min(94vw,540px);border:3px solid #62747b;border-radius:18px;background:#101a1d;box-shadow:0 25px 90px #000;padding:14px}
+.pcTop{display:flex;justify-content:space-between;align-items:center;color:#aaff69;font-weight:1000;letter-spacing:.12em;border-bottom:1px solid #3d5553;padding:4px 2px 12px}
+.pcScreen{background:#07120d;border:2px solid #385344;border-radius:9px;padding:13px;margin:12px 0;color:#c9ffc1;min-height:90px;text-align:left;font-family:ui-monospace,monospace}
+.pcScreen small{color:#8ba995}.keyboard{display:grid;grid-template-columns:repeat(10,1fr);gap:4px;margin-top:8px}
+.key{padding:9px 0;min-width:0;min-height:35px;margin:0;border-radius:6px;background:#263b3a;color:#e8fff0;font-size:12px}
+.key.wide{grid-column:span 2}.key.space{grid-column:span 6}
+.pcActions{display:flex;flex-wrap:wrap;justify-content:center;margin-top:10px}
+#crosshair{position:fixed;left:50%;top:50%;width:6px;height:6px;border-radius:50%;background:#eaffdf;box-shadow:0 0 14px #9cff45;pointer-events:none}
+@media(max-width:430px){.keyboard{gap:3px}.key{font-size:10px;padding:7px 0}.panel{padding:16px}}
 </style>
 </head>
 <body>
 <div id="hud">
-  <div class="top"><div><div class="brand">PRIMAL <span>RUSH</span></div><div class="tag">MOVE WITH YOUR HANDS</div></div><div class="tag">WEBXR PROTOTYPE</div></div>
-  <section class="panel" id="menu">
-    <div class="tag">WELCOME TO THE WILD</div>
-    <h1>PRIMAL <em>RUSH</em></h1>
-    <p>Push against the world with your hands. Swing, climb and explore the arena in VR.</p>
-    <button id="vr">ENTER VR</button><button class="secondary" id="desktop">DESKTOP PREVIEW</button>
-    <div id="status">For VR, open this page in Meta Quest Browser over HTTPS.</div>
-  </section>
-  <div id="hint">VR: use both motion controllers as hands · Desktop: WASD + mouse to look</div>
+ <div class="top"><div><div class="brand">PRIMAL <span>RUSH</span></div><div class="tag">MOVE WITH YOUR HANDS · PLAY TOGETHER</div></div><div class="tag">MULTIPLAYER TEST BUILD</div></div>
+ <section class="panel" id="menu">
+  <div class="tag">WELCOME TO THE WILD</div><h1>PRIMAL <em>RUSH</em></h1>
+  <p>Push off the world with your hands, explore the forest, collect glowing fruit and meet other players.</p>
+  <label>PLAYER NAME</label><input id="playerName" maxlength="16" value="Player">
+  <label>ROOM SERVER URL</label><input id="serverUrl" placeholder="https://your-primal-rush-server.onrender.com">
+  <label>ROOM CODE</label><input id="roomCode" maxlength="12" placeholder="e.g. FOREST">
+  <div><button id="createRoom">CREATE ROOM</button><button class="secondary" id="joinRoom">JOIN ROOM</button></div>
+  <div><button id="vr">ENTER VR</button><button class="secondary" id="desktop">DESKTOP PREVIEW</button></div>
+  <div id="status">Host this index.html on GitHub Pages. Multiplayer needs the separate Python server on Render; paste its URL here. VR needs HTTPS and a compatible headset browser.</div>
+ </section>
+ <div id="hint">Desktop: WASD + mouse · E opens the in-world PC · VR: use controller grips · only hands collide</div>
 </div>
-<div id="reticle"></div>
+<div id="roomHud"></div><div id="crosshair"></div>
+<div id="computer">
+ <div class="pc">
+  <div class="pcTop"><span>PRIMAL RUSH // FIELD PC</span><button class="secondary" id="closePc">CLOSE</button></div>
+  <div class="pcScreen"><div>WELCOME, <span id="pcName">PLAYER</span></div><small id="pcInfo">ROOM TERMINAL READY · ENTER A ROOM CODE</small><div id="pcOutput">> SYSTEM ONLINE</div></div>
+  <label>ROOM CODE</label><input id="pcRoomCode" maxlength="12" placeholder="ROOM CODE">
+  <div class="pcActions"><button id="pcCreate">CREATE</button><button id="pcJoin">JOIN</button><button class="secondary" id="pcLeave">LEAVE ROOM</button></div>
+  <label>VIRTUAL KEYBOARD</label><div class="keyboard" id="keyboard"></div>
+ </div>
+</div>
+<script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
 <script type="module">
 import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js';
 
-const status=document.querySelector('#status'), menu=document.querySelector('#menu');
-const scene=new THREE.Scene(); scene.background=new THREE.Color(0x8bc6dc); scene.fog=new THREE.Fog(0x8bc6dc,18,75);
-const camera=new THREE.PerspectiveCamera(70,innerWidth/innerHeight,.05,150);
-camera.position.set(0,1.65,5);
-const renderer=new THREE.WebGLRenderer({antialias:true});
-renderer.setPixelRatio(Math.min(devicePixelRatio,2)); renderer.setSize(innerWidth,innerHeight);
-renderer.xr.enabled=true; renderer.shadowMap.enabled=true; renderer.shadowMap.type=THREE.PCFSoftShadowMap;
-document.body.appendChild(renderer.domElement);
+const $=s=>document.querySelector(s);
+const status=$('#status'), menu=$('#menu'), roomHud=$('#roomHud'), computer=$('#computer');
+const scene=new THREE.Scene();scene.background=new THREE.Color(0x8bc6dc);scene.fog=new THREE.Fog(0x8bc6dc,20,85);
+const camera=new THREE.PerspectiveCamera(70,innerWidth/innerHeight,.05,180);
+const rig=new THREE.Group();rig.position.set(0,0,5);scene.add(rig);rig.add(camera);camera.position.set(0,1.65,0);
+const renderer=new THREE.WebGLRenderer({antialias:true});renderer.setPixelRatio(Math.min(devicePixelRatio,2));renderer.setSize(innerWidth,innerHeight);renderer.xr.enabled=true;renderer.shadowMap.enabled=true;renderer.shadowMap.type=THREE.PCFSoftShadowMap;document.body.appendChild(renderer.domElement);
 scene.add(new THREE.HemisphereLight(0xdaf5ff,0x34452a,2));
 const sun=new THREE.DirectionalLight(0xffffff,2.1);sun.position.set(-8,15,7);sun.castShadow=true;scene.add(sun);
-const mat=(c,r=.85)=>new THREE.MeshStandardMaterial({color:c,roughness:r});
-const groundMat=mat(0x365b35), rockMat=mat(0x65736f), bright=mat(0x9cff45), wood=mat(0x76543a);
+const mat=(c,r=.8)=>new THREE.MeshStandardMaterial({color:c,roughness:r});
+const groundMat=mat(0x365b35),rockMat=mat(0x65736f),bright=mat(0x9cff45),wood=mat(0x76543a);
 const floor=new THREE.Mesh(new THREE.PlaneGeometry(100,100),groundMat);floor.rotation.x=-Math.PI/2;floor.receiveShadow=true;scene.add(floor);
 const obstacles=[];
 function box(x,y,z,w,h,d,m=rockMat){const o=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),m);o.position.set(x,y,z);o.castShadow=true;o.receiveShadow=true;scene.add(o);obstacles.push({x,y,z,w,h,d});return o}
 function cylinder(x,y,z,r,h,m){const o=new THREE.Mesh(new THREE.CylinderGeometry(r,r,h,10),m);o.position.set(x,y,z);o.castShadow=true;scene.add(o);return o}
-// A small stylised forest training arena
-for(let i=0;i<18;i++){let a=i/18*Math.PI*2,rad=17+(i%3)*2,x=Math.cos(a)*rad,z=Math.sin(a)*rad;cylinder(x,2,z,.55,4,wood);let crown=new THREE.Mesh(new THREE.IcosahedronGeometry(2.2,1),mat(i%2?0x2e7c42:0x397f48));crown.position.set(x,5,z);crown.castShadow=true;scene.add(crown)}
-box(0,1.1,-8,7,2.2,1.2);box(-7,2,-2,1.2,4,7);box(7,2,-1,1.2,4,7);
-box(0,4,-14,8,.7,1.2,bright);box(-4,1.5,5,3,3,1.1,wood);box(4,1.5,4,3,3,1.1,wood);
-for(let i=0;i<12;i++){let x=(Math.random()-.5)*24,z=(Math.random()-.5)*24;if(Math.abs(x)>9||Math.abs(z)>9)cylinder(x,.35,z,.25,.7,bright)}
-// Decorative floating title stone
+for(let i=0;i<22;i++){let a=i/22*Math.PI*2,rad=18+(i%3)*2,x=Math.cos(a)*rad,z=Math.sin(a)*rad;cylinder(x,2,z,.55,4,wood);let crown=new THREE.Mesh(new THREE.IcosahedronGeometry(2.2,1),mat(i%2?0x2e7c42:0x397f48));crown.position.set(x,5,z);crown.castShadow=true;scene.add(crown)}
+box(0,1.1,-8,7,2.2,1.2);box(-7,2,-2,1.2,4,7);box(7,2,-1,1.2,4,7);box(0,4,-14,8,.7,1.2,bright);box(-4,1.5,5,3,3,1.1,wood);box(4,1.5,4,3,3,1.1,wood);
 const ring=new THREE.Mesh(new THREE.TorusGeometry(2.3,.12,12,64),bright);ring.position.set(0,3,-11);scene.add(ring);
 
-// VR hands are attached to controller grip poses. Push-off movement is driven by hand displacement.
-const handGeo=new THREE.IcosahedronGeometry(.14,2), handMat=mat(0xeaffdf,.45);
-const hands=[0,1].map(()=>{let m=new THREE.Mesh(handGeo,handMat);m.castShadow=true;scene.add(m);return m});
-const controllers=[renderer.xr.getController(0),renderer.xr.getController(1)];
-controllers.forEach(c=>scene.add(c));
-let prevHands=[null,null],velocity=new THREE.Vector3(),body=new THREE.Vector3(0,0,0),lastTime=performance.now(),desktop=false;
-const keys={};let yaw=0,pitch=0,mouseDown=false;
-function handWorld(i){
- const c=controllers[i];if(renderer.xr.isPresenting&&c.visible){const p=new THREE.Vector3();c.getWorldPosition(p);return p}
- // desktop hand placeholders
- const side=i===0?-1:1;return new THREE.Vector3().setFromMatrixPosition(camera.matrixWorld).add(new THREE.Vector3(side*.35,-.35,-.65).applyQuaternion(camera.quaternion));
+// In-world PC prop. Press E nearby on desktop; VR users can use the floating terminal button.
+const pcGroup=new THREE.Group();pcGroup.position.set(0,1.25,2.2);scene.add(pcGroup);
+const pcBody=new THREE.Mesh(new THREE.BoxGeometry(1.5,1.05,.18),mat(0x26383a));pcGroup.add(pcBody);
+const pcScreen=new THREE.Mesh(new THREE.BoxGeometry(1.34,.82,.035),new THREE.MeshStandardMaterial({color:0x07180f,emissive:0x174d22,emissiveIntensity:.8}));pcScreen.position.z=.11;pcGroup.add(pcScreen);
+const pcText=new THREE.Mesh(new THREE.PlaneGeometry(1.15,.58),new THREE.MeshBasicMaterial({color:0x9cff45}));pcText.position.set(0,0,.135);pcGroup.add(pcText);
+const pcStand=new THREE.Mesh(new THREE.BoxGeometry(.35,.45,.3),mat(0x35474a));pcStand.position.y=-.72;pcGroup.add(pcStand);
+const pcBase=new THREE.Mesh(new THREE.BoxGeometry(1.05,.1,.55),mat(0x35474a));pcBase.position.y=-.96;pcGroup.add(pcBase);
+
+// Pickups / spawned world props
+const pickups=[];const pickupGeo=new THREE.IcosahedronGeometry(.27,1);
+function spawnPickup(x,y,z,color=0xffbd4a){
+ const m=new THREE.Mesh(pickupGeo,new THREE.MeshStandardMaterial({color,emissive:color,emissiveIntensity:.45,roughness:.3}));
+ m.position.set(x,y,z);m.castShadow=true;scene.add(m);pickups.push({mesh:m,baseY:y,phase:Math.random()*6.28});return m;
 }
-function collides(p){
- // collision against arena boxes, treating player as a small sphere
- for(const b of obstacles){if(p.x>b.x-b.w/2-.28&&p.x<b.x+b.w/2+.28&&p.y>b.y-b.h/2-.8&&p.y<b.y+b.h/2+.8&&p.z>b.z-b.d/2-.28&&p.z<b.z+b.d/2+.28)return true}
- return false;
-}
-function updateHands(dt){
- for(let i=0;i<2;i++){
-  let p=handWorld(i);hands[i].position.copy(p);
-  if(prevHands[i]){
-   const delta=p.clone().sub(prevHands[i]);
-   // When a hand is moving backward/down against a nearby surface, propel the player oppositely.
-   const probe=p.clone();let supported=collides(probe)||p.y<.22;
-   if(supported){let push=delta.clone().multiplyScalar(-2.8);push.y=Math.max(0,push.y);velocity.add(push.clampLength(0,5));}
-  }
-  prevHands[i]=p.clone();
+for(let i=0;i<16;i++)spawnPickup((Math.random()-.5)*22,.65+Math.random()*1.6,(Math.random()-.5)*22,i%3===0?0x9cff45:0xffbd4a);
+let collected=0;
+
+// Simple stylized full-body primate avatar made from meshes (not a copied game asset).
+const palette=[0x83d8ff,0xffa45c,0xc99aff,0xff7d9b,0x9cff45,0xf3d36b,0x7fe0c2,0xd3dce4];
+function makeAvatar(color=palette[Math.floor(Math.random()*palette.length)]){
+ const g=new THREE.Group(),skin=mat(color),dark=mat(0x202b2c),face=mat(0x344447),eye=mat(0xf6fff2);
+ function part(geo,m,x,y,z,sx=1,sy=1,sz=1){const o=new THREE.Mesh(geo,m);o.position.set(x,y,z);o.scale.set(sx,sy,sz);o.castShadow=true;g.add(o);return o}
+ part(new THREE.SphereGeometry(.34,16,12),skin,0,1.05,0,1,1.2,.8); // torso
+ part(new THREE.SphereGeometry(.29,16,12),skin,0,1.52,-.02,1,1,.9); // head
+ part(new THREE.SphereGeometry(.2,12,8),face,0,1.45,-.265,1,.65,.35); // muzzle
+ part(new THREE.SphereGeometry(.055,10,8),eye,-.105,1.61,-.27,.7,.8,.5);
+ part(new THREE.SphereGeometry(.055,10,8),eye,.105,1.61,-.27,.7,.8,.5);
+ part(new THREE.SphereGeometry(.065,10,8),dark,0,1.46,-.32,1,.7,.7);
+ for(const side of [-1,1]){
+  part(new THREE.SphereGeometry(.15,12,8),skin,side*.4,1.1,0,.8,1.1,.8);
+  part(new THREE.SphereGeometry(.13,12,8),skin,side*.58,.82,-.04,1.15,1.1,1.15);
+  part(new THREE.SphereGeometry(.16,12,8),skin,side*.16,.57,0,.9,1.25,.9);
+  part(new THREE.SphereGeometry(.14,12,8),skin,side*.17,.17,-.04,1.2,.65,1.5);
  }
+ // curved tail
+ const curve=new THREE.CatmullRomCurve3([new THREE.Vector3(0,.85,.22),new THREE.Vector3(0,.55,.55),new THREE.Vector3(.15,.5,.82),new THREE.Vector3(.28,.72,.92)]);
+ const tail=new THREE.Mesh(new THREE.TubeGeometry(curve,16,.075,8,false),skin);tail.castShadow=true;g.add(tail);
+ return g;
 }
-function animate(){
- const now=performance.now(),dt=Math.min((now-lastTime)/1000,.04);lastTime=now;
- if(desktop){
-  const forward=new THREE.Vector3(-Math.sin(yaw),0,-Math.cos(yaw)),right=new THREE.Vector3(Math.cos(yaw),0,-Math.sin(yaw));
-  let wish=new THREE.Vector3();if(keys.KeyW)wish.add(forward);if(keys.KeyS)wish.sub(forward);if(keys.KeyD)wish.add(right);if(keys.KeyA)wish.sub(right);
-  if(wish.lengthSq())velocity.add(wish.normalize().multiplyScalar(9*dt));
-  camera.position.y=1.65;camera.rotation.set(pitch,yaw,0,'YXZ');
- }
- updateHands(dt);
- velocity.y-=9.8*dt;
- let next=camera.position.clone().addScaledVector(velocity,dt);
- if(next.y<1.35){next.y=1.35;velocity.y=Math.max(0,velocity.y)}
- if(collides(next))velocity.multiplyScalar(.15);else camera.position.copy(next);
- velocity.multiplyScalar(Math.pow(.985,dt*60));
- // Keep the camera within the arena.
- camera.position.x=THREE.MathUtils.clamp(camera.position.x,-22,22);camera.position.z=THREE.MathUtils.clamp(camera.position.z,-22,22);
- renderer.render(scene,camera);
+const localAvatar=makeAvatar();localAvatar.visible=false;scene.add(localAvatar);
+const remotePlayers=new Map();
+function playerAdd(id,data){
+ if(id===socket?.id)return;
+ if(remotePlayers.has(id))return;
+ const avatar=makeAvatar(data.color||palette[0]);scene.add(avatar);
+ const labelCanvas=document.createElement('canvas');labelCanvas.width=256;labelCanvas.height=64;
+ const ctx=labelCanvas.getContext('2d');ctx.fillStyle='#071018';ctx.fillRect(0,0,256,64);ctx.fillStyle='#dfffcc';ctx.font='bold 30px Arial';ctx.textAlign='center';ctx.fillText((data.name||'Player').slice(0,16),128,42);
+ const tex=new THREE.CanvasTexture(labelCanvas);const label=new THREE.Sprite(new THREE.SpriteMaterial({map:tex,transparent:true}));label.scale.set(1.5,.38,1);label.position.y=2.35;avatar.add(label);
+ remotePlayers.set(id,{avatar,target:new THREE.Vector3(data.x||0,0,data.z||0),yaw:data.yaw||0,handL:new THREE.Vector3(),handR:new THREE.Vector3()});
 }
+function playerRemove(id){const p=remotePlayers.get(id);if(p){scene.remove(p.avatar);remotePlayers.delete(id)}}
+let socket=null,room='',myName='Player',myColor=palette[Math.floor(Math.random()*palette.length)],lastNet=0;
+function setStatus(t){status.textContent=t;$('#pcInfo').textContent=t.toUpperCase().slice(0,90);$('#pcOutput').textContent='> '+t}
+function serverAddress(){let u=$('#serverUrl').value.trim();if(!u)u=location.origin;return u.replace(/\/+$/,'')}
+function connectRoom(code,create=false){
+ const url=serverAddress();if(!url.startsWith('https://')&&!url.startsWith('http://')){setStatus('Server URL must start with https:// or http://');return}
+ if(!window.io){setStatus('Socket.IO did not load. Check your connection.');return}
+ if(socket){socket.disconnect();socket=null}
+ myName=($('#playerName').value.trim()||'Player').slice(0,16);room=(code||'').toUpperCase().replace(/[^A-Z0-9]/g,'').slice(0,12);
+ if(create&&!room)room=Math.random().toString(36).slice(2,8).toUpperCase();
+ if(!room){setStatus('Enter a room code first.');return}
+ socket=io(url,{transports:['websocket','polling'],reconnection:true,timeout:12000});
+ socket.on('connect',()=>{socket.emit('join_room',{room,name:myName,color:'#'+myColor.toString(16).padStart(6,'0'),x:rig.position.x,z:rig.position.z,yaw});setStatus('Connected · room '+room);roomHud.style.display='block';roomHud.textContent='ROOM '+room+' · 1 PLAYER';$('#pcRoomCode').value=room;$('#roomCode').value=room;$('#pcName').textContent=myName.toUpperCase()});
+ socket.on('room_state',data=>{for(const [id,p] of Object.entries(data.players||{}))playerAdd(id,p);updateRoomCount(data.count||1)});
+ socket.on('player_joined',data=>{playerAdd(data.id,data);updateRoomCount(data.count||remotePlayers.size+1)});
+ socket.on('player_left',data=>{playerRemove(data.id);updateRoomCount(data.count||Math.max(1,remotePlayers.size+1))});
+ socket.on('player_update',data=>{playerAdd(data.id,data);const p=remotePlayers.get(data.id);if(p){p.target.set(data.x||0,data.y||0,data.z||0);p.yaw=data.yaw||0;p.handL.set(data.lx||0,data.ly||0,data.lz||0);p.handR.set(data.rx||0,data.ry||0,data.rz||0)}});
+ socket.on('room_error',d=>setStatus(d.message||'Room error'));
+ socket.on('connect_error',e=>setStatus('Could not connect: '+e.message+' · check your server URL'));
+ socket.on('disconnect',()=>{roomHud.style.display='none';setStatus('Disconnected from room')});
+}
+function updateRoomCount(n){roomHud.textContent='ROOM '+room+' · '+n+' PLAYER'+(n===1?'':'S')}
+function leaveRoom(){if(socket){socket.emit('leave_room',{room});socket.disconnect();socket=null}room='';remotePlayers.forEach((p,id)=>playerRemove(id));roomHud.style.display='none';menu.classList.remove('hidden');setStatus('You left the room.')}
+$('#createRoom').onclick=()=>connectRoom($('#roomCode').value,true);
+$('#joinRoom').onclick=()=>connectRoom($('#roomCode').value,false);
+$('#pcCreate').onclick=()=>{ $('#roomCode').value=$('#pcRoomCode').value;connectRoom($('#pcRoomCode').value,true);computer.style.display='none'};
+$('#pcJoin').onclick=()=>{connectRoom($('#pcRoomCode').value,false);computer.style.display='none'};
+$('#pcLeave').onclick=()=>{leaveRoom();computer.style.display='none'};
+$('#closePc').onclick=()=>computer.style.display='none';
+$('#pcRoomCode').addEventListener('input',()=>$('#roomCode').value=$('#pcRoomCode').value.toUpperCase());
+function openPC(){computer.style.display='flex';$('#pcName').textContent=(myName||$('#playerName').value||'PLAYER').toUpperCase();$('#pcRoomCode').value=room||$('#roomCode').value}
+controllers.forEach(c=>c.addEventListener('select',()=>{const pos=new THREE.Vector3();rig.getWorldPosition(pos);if(pos.distanceTo(pcGroup.position)<5)openPC()}));
+const keyboard=$('#keyboard');
+const keysLayout=['1234567890','QWERTYUIOP','ASDFGHJKL','ZXCVBNM'];
+for(const row of keysLayout){for(const ch of row){const b=document.createElement('button');b.className='key';b.textContent=ch;b.onclick=()=>$('#pcRoomCode').value+=ch;keyboard.appendChild(b)}}
+const back=document.createElement('button');back.className='key wide';back.textContent='⌫';back.onclick=()=>$('#pcRoomCode').value=$('#pcRoomCode').value.slice(0,-1);keyboard.appendChild(back);
+const space=document.createElement('button');space.className='key space';space.textContent='SPACE';space.onclick=()=>$('#pcRoomCode').value+=' ';keyboard.appendChild(space);
+const enter=document.createElement('button');enter.className='key wide';enter.textContent='↵';enter.onclick=()=>{connectRoom($('#pcRoomCode').value,false);computer.style.display='none'};keyboard.appendChild(enter);
+
+const handGeo=new THREE.IcosahedronGeometry(.14,2),handMat=mat(0xeaffdf,.45);
+const hands=[0,1].map(()=>{const m=new THREE.Mesh(handGeo,handMat);m.castShadow=true;scene.add(m);return m});
+const controllers=[renderer.xr.getController(0),renderer.xr.getController(1)];controllers.forEach(c=>rig.add(c));
+let prevHands=[null,null],velocity=new THREE.Vector3(),lastTime=performance.now(),desktop=false,yaw=0,pitch=0;
+const keys={},handRadius=.17;
+function handWorld(i){const c=controllers[i];if(renderer.xr.isPresenting&&c.visible){const p=new THREE.Vector3();c.getWorldPosition(p);return p}
+ const side=i===0?-1:1;return new THREE.Vector3().setFromMatrixPosition(camera.matrixWorld).add(new THREE.Vector3(side*.35,-.35,-.65).applyQuaternion(camera.quaternion))}
+function resolveHand(point){const p=point.clone();let touching=false;if(p.y<handRadius){p.y=handRadius;touching=true}
+ for(const b of obstacles){const min=new THREE.Vector3(b.x-b.w/2,b.y-b.h/2,b.z-b.d/2),max=new THREE.Vector3(b.x+b.w/2,b.y+b.h/2,b.z+b.d/2),closest=new THREE.Vector3(THREE.MathUtils.clamp(p.x,min.x,max.x),THREE.MathUtils.clamp(p.y,min.y,max.y),THREE.MathUtils.clamp(p.z,min.z,max.z)),away=p.clone().sub(closest),dist=away.length();if(dist<handRadius){if(dist<.0001)away.set(0,1,0);else away.normalize();p.copy(closest.addScaledVector(away,handRadius));touching=true}}
+ return {position:p,touching}}
+function updateHands(dt){for(let i=0;i<2;i++){const raw=handWorld(i),resolved=resolveHand(raw);hands[i].position.copy(resolved.position);if(prevHands[i]&&resolved.touching){const motion=raw.clone().sub(prevHands[i]);const support=motion.clone().multiplyScalar(-1);rig.position.add(support);rig.position.add(resolved.position.clone().sub(raw));if(support.y>0)velocity.y=Math.max(velocity.y,support.y/Math.max(dt,.001))}prevHands[i]=raw.clone()}}
+function spawnLocalPickup(){const a=Math.random()*Math.PI*2,r=3+Math.random()*12;spawnPickup(Math.cos(a)*r,.8+Math.random()*1.5,Math.sin(a)*r,Math.random()>.5?0x9cff45:0xffbd4a)}
+function animate(){const now=performance.now(),dt=Math.min((now-lastTime)/1000,.04);lastTime=now;
+ if(desktop){const forward=new THREE.Vector3(-Math.sin(yaw),0,-Math.cos(yaw)),right=new THREE.Vector3(Math.cos(yaw),0,-Math.sin(yaw)),wish=new THREE.Vector3();if(keys.KeyW)wish.add(forward);if(keys.KeyS)wish.sub(forward);if(keys.KeyD)wish.add(right);if(keys.KeyA)wish.sub(right);if(wish.lengthSq())velocity.add(wish.normalize().multiplyScalar(9*dt));camera.position.set(0,1.65,0);camera.rotation.set(pitch,yaw,0,'YXZ')}
+ updateHands(dt);velocity.y-=9.8*dt;rig.position.addScaledVector(velocity,dt);velocity.multiplyScalar(Math.pow(.995,dt*60));rig.position.x=THREE.MathUtils.clamp(rig.position.x,-28,28);rig.position.z=THREE.MathUtils.clamp(rig.position.z,-28,28);
+ const playerPos=new THREE.Vector3();rig.getWorldPosition(playerPos);
+ for(let i=pickups.length-1;i>=0;i--){const p=pickups[i];p.mesh.position.y=p.baseY+Math.sin(now*.0018+p.phase)*.14;p.mesh.rotation.y+=dt*1.5;if(p.mesh.position.distanceTo(playerPos)<.8){scene.remove(p.mesh);pickups.splice(i,1);collected++;if(collected%3===0)spawnLocalPickup();}}
+ for(const p of remotePlayers.values()){p.avatar.position.lerp(p.target,Math.min(1,dt*10));p.avatar.rotation.y=p.yaw}
+ if(socket?.connected&&now-lastNet>66){lastNet=now;const l=handWorld(0),r=handWorld(1);socket.emit('player_update',{room,x:rig.position.x,y:rig.position.y,z:rig.position.z,yaw,lx:l.x,ly:l.y,lz:l.z,rx:r.x,ry:r.y,rz:r.z,name:myName,color:'#'+myColor.toString(16).padStart(6,'0')})}
+ renderer.render(scene,camera)}
 renderer.setAnimationLoop(animate);
-document.querySelector('#vr').addEventListener('click',async()=>{
- try{
-  if(!navigator.xr){status.textContent='WebXR is not available in this browser. Try Meta Quest Browser over HTTPS.';return}
-  const supported=await navigator.xr.isSessionSupported('immersive-vr');
-  if(!supported){status.textContent='Immersive VR is not supported here. Open on a compatible VR headset.';return}
-  const session=await navigator.xr.requestSession('immersive-vr',{optionalFeatures:['local-floor','bounded-floor']});
-  await renderer.xr.setSession(session);menu.classList.add('hidden');session.addEventListener('end',()=>menu.classList.remove('hidden'));
- }catch(e){status.textContent='Could not start VR: '+e.message}
-});
-document.querySelector('#desktop').addEventListener('click',()=>{desktop=true;menu.classList.add('hidden');status.textContent=''});
-addEventListener('keydown',e=>keys[e.code]=true);addEventListener('keyup',e=>keys[e.code]=false);
-renderer.domElement.addEventListener('click',()=>{if(desktop)renderer.domElement.requestPointerLock?.()});
+$('#vr').onclick=async()=>{try{if(!navigator.xr){setStatus('WebXR unavailable. Try Meta Quest Browser over HTTPS.');return}if(!await navigator.xr.isSessionSupported('immersive-vr')){setStatus('This browser/headset does not support immersive VR.');return}const s=await navigator.xr.requestSession('immersive-vr',{optionalFeatures:['local-floor','bounded-floor','dom-overlay'],domOverlay:{root:document.body}});await renderer.xr.setSession(s);menu.classList.add('hidden');s.addEventListener('end',()=>menu.classList.remove('hidden'))}catch(e){setStatus('Could not start VR: '+e.message)}};
+$('#desktop').onclick=()=>{desktop=true;menu.classList.add('hidden');setStatus('Desktop preview ready. Walk to the PC and press E to open it.')};
+addEventListener('keydown',e=>{keys[e.code]=true;if(e.code==='KeyE'&&desktop){const pos=new THREE.Vector3();rig.getWorldPosition(pos);if(pos.distanceTo(pcGroup.position)<5)openPC()}});
+addEventListener('keyup',e=>keys[e.code]=false);
+renderer.domElement.addEventListener('click',()=>{if(desktop&&computer.style.display!=='flex')renderer.domElement.requestPointerLock?.()});
 addEventListener('mousemove',e=>{if(desktop&&document.pointerLockElement){yaw-=e.movementX*.002;pitch=THREE.MathUtils.clamp(pitch-e.movementY*.002,-1.2,1.2)}});
 addEventListener('resize',()=>{camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();renderer.setSize(innerWidth,innerHeight)});
 </script>
-</body>
-</html>
+</body></html>
