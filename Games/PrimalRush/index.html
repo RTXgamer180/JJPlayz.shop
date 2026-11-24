@@ -3,8 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>Primal Rush — Multiplayer WebXR</title>
-<meta name="description" content="Primal Rush — hand-locomotion multiplayer WebXR prototype.">
+<title>Primal Rush — Single-player WebXR</title>
+<meta name="description" content="Primal Rush — hand-locomotion single-player WebXR prototype.">
 <style>
 :root{color-scheme:dark;font-family:Inter,system-ui,Arial,sans-serif}
 *{box-sizing:border-box}html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#080d12;color:#f4f7fa}
@@ -38,30 +38,17 @@ label{display:block;text-align:left;color:#c6d0d7;font-size:11px;font-weight:800
 </head>
 <body>
 <div id="hud">
- <div class="top"><div><div class="brand">PRIMAL <span>RUSH</span></div><div class="tag">MOVE WITH YOUR HANDS · PLAY TOGETHER</div></div><div class="tag">MULTIPLAYER TEST BUILD</div></div>
+ <div class="top"><div><div class="brand">PRIMAL <span>RUSH</span></div><div class="tag">MOVE WITH YOUR HANDS · EXPLORE THE WILD</div></div><div class="tag">SINGLE-PLAYER BUILD</div></div>
  <section class="panel" id="menu">
   <div class="tag">WELCOME TO THE WILD</div><h1>PRIMAL <em>RUSH</em></h1>
-  <p>Push off the world with your hands, explore the forest, collect glowing fruit and meet other players.</p>
+  <p>Push off the world with your hands, explore the forest and collect glowing fruit.</p>
   <label>PLAYER NAME</label><input id="playerName" maxlength="16" value="Player">
-  <label>ROOM SERVER URL</label><input id="serverUrl" placeholder="https://your-primal-rush-server.onrender.com">
-  <label>ROOM CODE</label><input id="roomCode" maxlength="12" placeholder="e.g. FOREST">
-  <div><button id="createRoom">CREATE ROOM</button><button class="secondary" id="joinRoom">JOIN ROOM</button></div>
   <div><button id="vr">ENTER VR</button><button class="secondary" id="desktop">DESKTOP PREVIEW</button></div>
-  <div id="status">Host this index.html on GitHub Pages. Multiplayer needs the separate Python server on Render; paste its URL here. VR needs HTTPS and a compatible headset browser.</div>
+  <div id="status">Single-player mode. VR needs HTTPS and a compatible headset browser.</div>
  </section>
- <div id="hint">Desktop: WASD + mouse · E opens the in-world PC · VR: use controller grips · only hands collide</div>
+ <div id="hint">Desktop: WASD + mouse · VR: use controller grips · only hands collide</div>
 </div>
-<div id="roomHud"></div><div id="crosshair"></div>
-<div id="computer">
- <div class="pc">
-  <div class="pcTop"><span>PRIMAL RUSH // FIELD PC</span><button class="secondary" id="closePc">CLOSE</button></div>
-  <div class="pcScreen"><div>WELCOME, <span id="pcName">PLAYER</span></div><small id="pcInfo">ROOM TERMINAL READY · ENTER A ROOM CODE</small><div id="pcOutput">> SYSTEM ONLINE</div></div>
-  <label>ROOM CODE</label><input id="pcRoomCode" maxlength="12" placeholder="ROOM CODE">
-  <div class="pcActions"><button id="pcCreate">CREATE</button><button id="pcJoin">JOIN</button><button class="secondary" id="pcLeave">LEAVE ROOM</button></div>
-  <label>VIRTUAL KEYBOARD</label><div class="keyboard" id="keyboard"></div>
- </div>
-</div>
-<script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
+<div id="crosshair"></div>
 <script type="module">
 import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js';
 
@@ -83,13 +70,6 @@ for(let i=0;i<22;i++){let a=i/22*Math.PI*2,rad=18+(i%3)*2,x=Math.cos(a)*rad,z=Ma
 box(0,1.1,-8,7,2.2,1.2);box(-7,2,-2,1.2,4,7);box(7,2,-1,1.2,4,7);box(0,4,-14,8,.7,1.2,bright);box(-4,1.5,5,3,3,1.1,wood);box(4,1.5,4,3,3,1.1,wood);
 const ring=new THREE.Mesh(new THREE.TorusGeometry(2.3,.12,12,64),bright);ring.position.set(0,3,-11);scene.add(ring);
 
-// In-world PC prop. Press E nearby on desktop; VR users can use the floating terminal button.
-const pcGroup=new THREE.Group();pcGroup.position.set(0,1.25,2.2);scene.add(pcGroup);
-const pcBody=new THREE.Mesh(new THREE.BoxGeometry(1.5,1.05,.18),mat(0x26383a));pcGroup.add(pcBody);
-const pcScreen=new THREE.Mesh(new THREE.BoxGeometry(1.34,.82,.035),new THREE.MeshStandardMaterial({color:0x07180f,emissive:0x174d22,emissiveIntensity:.8}));pcScreen.position.z=.11;pcGroup.add(pcScreen);
-const pcText=new THREE.Mesh(new THREE.PlaneGeometry(1.15,.58),new THREE.MeshBasicMaterial({color:0x9cff45}));pcText.position.set(0,0,.135);pcGroup.add(pcText);
-const pcStand=new THREE.Mesh(new THREE.BoxGeometry(.35,.45,.3),mat(0x35474a));pcStand.position.y=-.72;pcGroup.add(pcStand);
-const pcBase=new THREE.Mesh(new THREE.BoxGeometry(1.05,.1,.55),mat(0x35474a));pcBase.position.y=-.96;pcGroup.add(pcBase);
 
 // Pickups / spawned world props
 const pickups=[];const pickupGeo=new THREE.IcosahedronGeometry(.27,1);
@@ -123,54 +103,6 @@ function makeAvatar(color=palette[Math.floor(Math.random()*palette.length)]){
  return g;
 }
 const localAvatar=makeAvatar();localAvatar.visible=false;scene.add(localAvatar);
-const remotePlayers=new Map();
-function playerAdd(id,data){
- if(id===socket?.id)return;
- if(remotePlayers.has(id))return;
- const avatar=makeAvatar(data.color||palette[0]);scene.add(avatar);
- const labelCanvas=document.createElement('canvas');labelCanvas.width=256;labelCanvas.height=64;
- const ctx=labelCanvas.getContext('2d');ctx.fillStyle='#071018';ctx.fillRect(0,0,256,64);ctx.fillStyle='#dfffcc';ctx.font='bold 30px Arial';ctx.textAlign='center';ctx.fillText((data.name||'Player').slice(0,16),128,42);
- const tex=new THREE.CanvasTexture(labelCanvas);const label=new THREE.Sprite(new THREE.SpriteMaterial({map:tex,transparent:true}));label.scale.set(1.5,.38,1);label.position.y=2.35;avatar.add(label);
- remotePlayers.set(id,{avatar,target:new THREE.Vector3(data.x||0,0,data.z||0),yaw:data.yaw||0,handL:new THREE.Vector3(),handR:new THREE.Vector3()});
-}
-function playerRemove(id){const p=remotePlayers.get(id);if(p){scene.remove(p.avatar);remotePlayers.delete(id)}}
-let socket=null,room='',myName='Player',myColor=palette[Math.floor(Math.random()*palette.length)],lastNet=0;
-function setStatus(t){status.textContent=t;$('#pcInfo').textContent=t.toUpperCase().slice(0,90);$('#pcOutput').textContent='> '+t}
-function serverAddress(){let u=$('#serverUrl').value.trim();if(!u)u=location.origin;return u.replace(/\/+$/,'')}
-function connectRoom(code,create=false){
- const url=serverAddress();if(!url.startsWith('https://')&&!url.startsWith('http://')){setStatus('Server URL must start with https:// or http://');return}
- if(!window.io){setStatus('Socket.IO did not load. Check your connection.');return}
- if(socket){socket.disconnect();socket=null}
- myName=($('#playerName').value.trim()||'Player').slice(0,16);room=(code||'').toUpperCase().replace(/[^A-Z0-9]/g,'').slice(0,12);
- if(create&&!room)room=Math.random().toString(36).slice(2,8).toUpperCase();
- if(!room){setStatus('Enter a room code first.');return}
- socket=io(url,{transports:['websocket','polling'],reconnection:true,timeout:12000});
- socket.on('connect',()=>{socket.emit('join_room',{room,name:myName,color:'#'+myColor.toString(16).padStart(6,'0'),x:rig.position.x,z:rig.position.z,yaw});setStatus('Connected · room '+room);roomHud.style.display='block';roomHud.textContent='ROOM '+room+' · 1 PLAYER';$('#pcRoomCode').value=room;$('#roomCode').value=room;$('#pcName').textContent=myName.toUpperCase()});
- socket.on('room_state',data=>{for(const [id,p] of Object.entries(data.players||{}))playerAdd(id,p);updateRoomCount(data.count||1)});
- socket.on('player_joined',data=>{playerAdd(data.id,data);updateRoomCount(data.count||remotePlayers.size+1)});
- socket.on('player_left',data=>{playerRemove(data.id);updateRoomCount(data.count||Math.max(1,remotePlayers.size+1))});
- socket.on('player_update',data=>{playerAdd(data.id,data);const p=remotePlayers.get(data.id);if(p){p.target.set(data.x||0,data.y||0,data.z||0);p.yaw=data.yaw||0;p.handL.set(data.lx||0,data.ly||0,data.lz||0);p.handR.set(data.rx||0,data.ry||0,data.rz||0)}});
- socket.on('room_error',d=>setStatus(d.message||'Room error'));
- socket.on('connect_error',e=>setStatus('Could not connect: '+e.message+' · check your server URL'));
- socket.on('disconnect',()=>{roomHud.style.display='none';setStatus('Disconnected from room')});
-}
-function updateRoomCount(n){roomHud.textContent='ROOM '+room+' · '+n+' PLAYER'+(n===1?'':'S')}
-function leaveRoom(){if(socket){socket.emit('leave_room',{room});socket.disconnect();socket=null}room='';remotePlayers.forEach((p,id)=>playerRemove(id));roomHud.style.display='none';menu.classList.remove('hidden');setStatus('You left the room.')}
-$('#createRoom').onclick=()=>connectRoom($('#roomCode').value,true);
-$('#joinRoom').onclick=()=>connectRoom($('#roomCode').value,false);
-$('#pcCreate').onclick=()=>{ $('#roomCode').value=$('#pcRoomCode').value;connectRoom($('#pcRoomCode').value,true);computer.style.display='none'};
-$('#pcJoin').onclick=()=>{connectRoom($('#pcRoomCode').value,false);computer.style.display='none'};
-$('#pcLeave').onclick=()=>{leaveRoom();computer.style.display='none'};
-$('#closePc').onclick=()=>computer.style.display='none';
-$('#pcRoomCode').addEventListener('input',()=>$('#roomCode').value=$('#pcRoomCode').value.toUpperCase());
-function openPC(){computer.style.display='flex';$('#pcName').textContent=(myName||$('#playerName').value||'PLAYER').toUpperCase();$('#pcRoomCode').value=room||$('#roomCode').value}
-controllers.forEach(c=>c.addEventListener('select',()=>{const pos=new THREE.Vector3();rig.getWorldPosition(pos);if(pos.distanceTo(pcGroup.position)<5)openPC()}));
-const keyboard=$('#keyboard');
-const keysLayout=['1234567890','QWERTYUIOP','ASDFGHJKL','ZXCVBNM'];
-for(const row of keysLayout){for(const ch of row){const b=document.createElement('button');b.className='key';b.textContent=ch;b.onclick=()=>$('#pcRoomCode').value+=ch;keyboard.appendChild(b)}}
-const back=document.createElement('button');back.className='key wide';back.textContent='⌫';back.onclick=()=>$('#pcRoomCode').value=$('#pcRoomCode').value.slice(0,-1);keyboard.appendChild(back);
-const space=document.createElement('button');space.className='key space';space.textContent='SPACE';space.onclick=()=>$('#pcRoomCode').value+=' ';keyboard.appendChild(space);
-const enter=document.createElement('button');enter.className='key wide';enter.textContent='↵';enter.onclick=()=>{connectRoom($('#pcRoomCode').value,false);computer.style.display='none'};keyboard.appendChild(enter);
 
 const handGeo=new THREE.IcosahedronGeometry(.14,2),handMat=mat(0xeaffdf,.45);
 const hands=[0,1].map(()=>{const m=new THREE.Mesh(handGeo,handMat);m.castShadow=true;scene.add(m);return m});
@@ -189,15 +121,13 @@ function animate(){const now=performance.now(),dt=Math.min((now-lastTime)/1000,.
  updateHands(dt);velocity.y-=9.8*dt;rig.position.addScaledVector(velocity,dt);velocity.multiplyScalar(Math.pow(.995,dt*60));rig.position.x=THREE.MathUtils.clamp(rig.position.x,-28,28);rig.position.z=THREE.MathUtils.clamp(rig.position.z,-28,28);
  const playerPos=new THREE.Vector3();rig.getWorldPosition(playerPos);
  for(let i=pickups.length-1;i>=0;i--){const p=pickups[i];p.mesh.position.y=p.baseY+Math.sin(now*.0018+p.phase)*.14;p.mesh.rotation.y+=dt*1.5;if(p.mesh.position.distanceTo(playerPos)<.8){scene.remove(p.mesh);pickups.splice(i,1);collected++;if(collected%3===0)spawnLocalPickup();}}
- for(const p of remotePlayers.values()){p.avatar.position.lerp(p.target,Math.min(1,dt*10));p.avatar.rotation.y=p.yaw}
- if(socket?.connected&&now-lastNet>66){lastNet=now;const l=handWorld(0),r=handWorld(1);socket.emit('player_update',{room,x:rig.position.x,y:rig.position.y,z:rig.position.z,yaw,lx:l.x,ly:l.y,lz:l.z,rx:r.x,ry:r.y,rz:r.z,name:myName,color:'#'+myColor.toString(16).padStart(6,'0')})}
  renderer.render(scene,camera)}
 renderer.setAnimationLoop(animate);
-$('#vr').onclick=async()=>{try{if(!navigator.xr){setStatus('WebXR unavailable. Try Meta Quest Browser over HTTPS.');return}if(!await navigator.xr.isSessionSupported('immersive-vr')){setStatus('This browser/headset does not support immersive VR.');return}const s=await navigator.xr.requestSession('immersive-vr',{optionalFeatures:['local-floor','bounded-floor','dom-overlay'],domOverlay:{root:document.body}});await renderer.xr.setSession(s);menu.classList.add('hidden');s.addEventListener('end',()=>menu.classList.remove('hidden'))}catch(e){setStatus('Could not start VR: '+e.message)}};
-$('#desktop').onclick=()=>{desktop=true;menu.classList.add('hidden');setStatus('Desktop preview ready. Walk to the PC and press E to open it.')};
-addEventListener('keydown',e=>{keys[e.code]=true;if(e.code==='KeyE'&&desktop){const pos=new THREE.Vector3();rig.getWorldPosition(pos);if(pos.distanceTo(pcGroup.position)<5)openPC()}});
+$('#vr').onclick=async()=>{try{if(!navigator.xr){status.textContent='WebXR unavailable. Try Meta Quest Browser over HTTPS.';return}if(!await navigator.xr.isSessionSupported('immersive-vr')){status.textContent='This browser/headset does not support immersive VR.';return}const s=await navigator.xr.requestSession('immersive-vr',{optionalFeatures:['local-floor','bounded-floor','dom-overlay'],domOverlay:{root:document.body}});await renderer.xr.setSession(s);menu.classList.add('hidden');s.addEventListener('end',()=>menu.classList.remove('hidden'))}catch(e){status.textContent='Could not start VR: '+e.message}};
+$('#desktop').onclick=()=>{desktop=true;menu.classList.add('hidden')};
+addEventListener('keydown',e=>{keys[e.code]=true});
 addEventListener('keyup',e=>keys[e.code]=false);
-renderer.domElement.addEventListener('click',()=>{if(desktop&&computer.style.display!=='flex')renderer.domElement.requestPointerLock?.()});
+renderer.domElement.addEventListener('click',()=>{if(desktop)renderer.domElement.requestPointerLock?.()});
 addEventListener('mousemove',e=>{if(desktop&&document.pointerLockElement){yaw-=e.movementX*.002;pitch=THREE.MathUtils.clamp(pitch-e.movementY*.002,-1.2,1.2)}});
 addEventListener('resize',()=>{camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();renderer.setSize(innerWidth,innerHeight)});
 </script>
